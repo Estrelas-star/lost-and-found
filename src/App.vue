@@ -1,23 +1,44 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useAppStore, type Item, type ItemType } from './stores/app'
-import { navItems } from './router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAppStore, type Item, type ItemType, type Role } from './stores/app'
+import { navItems } from './navigation'
 import MetricCard from './components/MetricCard.vue'
 
 const store = useAppStore()
+const router = useRouter()
+const route = useRoute()
 const search = ref('')
 const filter = ref<'全部' | ItemType>('全部')
 const selectedItem = ref<Item | null>(null)
 const notice = ref('')
+const profileMenuOpen = ref(false)
 const form = ref({ type: 'lost' as ItemType, title: '', category: '数码', location: '', contact: '', desc: '' })
 const roleLabels = { student: '学生端', itemAdmin: '失物招领管理', systemAdmin: '系统管理' }
 const pageTitle = computed(() => ({ home: '发现物品', publish: '发布信息', posts: '我的发布', claims: '我的认领', audit: '审核中心', manage: '物品管理', dashboard: '数据总览', users: '账号管理', notices: '公告管理' })[store.activeRoute])
+const visibleNavItems = computed(() => navItems[store.role].filter((item) => (item.roles as readonly Role[]).includes(store.role)))
 const filteredItems = computed(() => store.items.filter((item) => (filter.value === '全部' || item.type === filter.value) && `${item.title}${item.location}${item.category}`.toLowerCase().includes(search.value.toLowerCase())))
 const myItems = computed(() => store.items.filter((item) => item.author === store.currentUser.name))
 const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
 const stats = computed(() => ({ total: store.items.length + 26, returned: store.items.filter((item) => item.status === '已认领').length + 18, pending: pendingItems.value.length + 8, rate: '68%' }))
 
-function go(key: string) { store.setActiveRoute(key); selectedItem.value = null }
+const roleHome = { student: 'home', itemAdmin: 'audit', systemAdmin: 'dashboard' } as const
+
+watch(() => route.meta.page, (page) => {
+  store.setActiveRoute(typeof page === 'string' ? page : roleHome[store.role])
+}, { immediate: true })
+
+function go(key: string) {
+  selectedItem.value = null
+  router.push({ name: key })
+}
+
+function handleLogout() {
+  profileMenuOpen.value = false
+  store.logout()
+  router.replace({ name: 'login' })
+}
+
 function flash(text: string) { notice.value = text; setTimeout(() => { notice.value = '' }, 2200) }
 function submitPost() {
   if (!form.value.title || !form.value.location) {
@@ -56,17 +77,16 @@ function claim(item: Item) {
       <div class="role-switcher">
         <span class="avatar">{{ store.currentUser.name.slice(0, 1) }}</span>
         <div><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div>
-        <select v-model="store.role" aria-label="切换角色"><option value="student">学生端</option><option value="itemAdmin">失物招领管理</option><option value="systemAdmin">系统管理</option></select>
       </div>
       <nav>
         <p class="nav-caption">{{ roleLabels[store.role] }}</p>
-        <button v-for="item in navItems[store.role]" :key="item.key" class="nav-item" :class="{ active: store.activeRoute === item.key }" @click="go(item.key)"><span>{{ item.icon }}</span>{{ item.label }}<b v-if="item.key === 'audit' && pendingItems.length">{{ pendingItems.length }}</b></button>
+        <button v-for="item in visibleNavItems" :key="item.key" class="nav-item" :class="{ active: store.activeRoute === item.key }" @click="go(item.key)"><span>{{ item.icon }}</span>{{ item.label }}<b v-if="item.key === 'audit' && pendingItems.length">{{ pendingItems.length }}</b></button>
       </nav>
       <div class="sidebar-bottom"><button class="help-link" @click="flash('帮助中心即将上线')">? <span>帮助与反馈</span></button><div class="version">拾光 v1.0 · 让每件物品回家</div></div>
     </aside>
 
     <main class="main-content">
-      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><button class="icon-btn" @click="flash('暂无新的通知')">♧<i></i></button><button class="profile" @click="flash('当前登录：' + store.currentUser.name)"><span class="avatar small">{{ store.currentUser.name.slice(0, 1) }}</span><span>{{ store.currentUser.name }}</span>⌄</button></div></header>
+      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><button class="icon-btn" @click="flash('暂无新的通知')">♧<i></i></button><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small">{{ store.currentUser.name.slice(0, 1) }}</span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button @click="handleLogout">退出登录</button></div></div></div></header>
       <div class="page-wrap">
         <section v-if="store.activeRoute === 'home'" class="page-section">
           <div class="welcome-row"><div><span class="eyebrow">WED · 06.17</span><h1>你好，{{ store.currentUser.name }} <span class="wave">✦</span></h1><p>今天也帮一件物品找到回家的路吧。</p></div><button class="primary-btn" @click="go('publish')">＋ 发布信息</button></div>

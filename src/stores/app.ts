@@ -73,6 +73,7 @@ export const useAppStore = defineStore('app', () => {
   function logout() {
     isAuthenticated.value = false
     localStorage.removeItem('auth_token')
+    localStorage.removeItem('role')
   }
   function publish(item: Omit<Item, 'id' | 'author' | 'date' | 'status'> & { status?: ItemStatus }) {
     items.value.unshift({ id: Date.now(), ...item, status: role.value === 'student' ? '待审核' : item.status || '待审核', author: currentUser.value.name, date: '刚刚' })
