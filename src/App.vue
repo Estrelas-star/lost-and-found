@@ -1,15 +1,15 @@
-<script setup>
+<script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useAppStore } from './stores/app'
+import { useAppStore, type Item, type ItemType } from './stores/app'
 import { navItems } from './router'
 import MetricCard from './components/MetricCard.vue'
 
 const store = useAppStore()
 const search = ref('')
-const filter = ref('全部')
-const selectedItem = ref(null)
+const filter = ref<'全部' | ItemType>('全部')
+const selectedItem = ref<Item | null>(null)
 const notice = ref('')
-const form = ref({ type: 'lost', title: '', category: '数码', location: '', contact: '', desc: '' })
+const form = ref({ type: 'lost' as ItemType, title: '', category: '数码', location: '', contact: '', desc: '' })
 const roleLabels = { student: '学生端', itemAdmin: '失物招领管理', systemAdmin: '系统管理' }
 const pageTitle = computed(() => ({ home: '发现物品', publish: '发布信息', posts: '我的发布', claims: '我的认领', audit: '审核中心', manage: '物品管理', dashboard: '数据总览', users: '账号管理', notices: '公告管理' })[store.activeRoute])
 const filteredItems = computed(() => store.items.filter((item) => (filter.value === '全部' || item.type === filter.value) && `${item.title}${item.location}${item.category}`.toLowerCase().includes(search.value.toLowerCase())))
@@ -17,8 +17,8 @@ const myItems = computed(() => store.items.filter((item) => item.author === stor
 const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
 const stats = computed(() => ({ total: store.items.length + 26, returned: store.items.filter((item) => item.status === '已认领').length + 18, pending: pendingItems.value.length + 8, rate: '68%' }))
 
-function go(key) { store.setActiveRoute(key); selectedItem.value = null }
-function flash(text) { notice.value = text; setTimeout(() => { notice.value = '' }, 2200) }
+function go(key: string) { store.setActiveRoute(key); selectedItem.value = null }
+function flash(text: string) { notice.value = text; setTimeout(() => { notice.value = '' }, 2200) }
 function submitPost() {
   if (!form.value.title || !form.value.location) {
     flash('请先补充物品名称和地点')
@@ -32,7 +32,7 @@ function submitPost() {
     status: '待审核'
   })
   form.value = {
-    type: 'lost',
+    type: 'lost' as ItemType,
     title: '',
     category: '数码',
     location: '',
@@ -42,7 +42,7 @@ function submitPost() {
   flash('信息已提交，等待管理员审核')
 }
 
-function claim(item) {
+function claim(item: Item) {
   store.submitClaim(item)
   flash('认领申请已提交，请等待审核')
 }
