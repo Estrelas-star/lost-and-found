@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { useAppStore, type Item, type ItemType, type Role } from './stores/app'
 import { navItems } from './navigation'
 import MetricCard from './components/MetricCard.vue'
+import PublishForm from './components/PublishForm.vue'
 
 const store = useAppStore()
 const router = useRouter()
@@ -19,7 +20,7 @@ const pageSize = ref(6)
 const selectedItem = ref<Item | null>(null)
 const notice = ref('')
 const profileMenuOpen = ref(false)
-const form = ref({ type: 'lost' as ItemType, title: '', category: '', location: '', contact: '', desc: '', images: [] as string[] })
+const form = ref({ type: 'lost' as ItemType, title: '', category: '', tags: [] as string[], location: '', contact: '', desc: '', images: [] as string[] })
 const errors = ref<Record<string, string>>({})
 const locationTree = {
   南区: {
@@ -47,9 +48,9 @@ const locationOptions = computed(() => ['全部', ...Array.from(new Set(store.it
 const timeOptions = ['全部', '近3天', '近7天', '近30天']
 const filteredItems = computed(() => store.items.filter((item) => {
   const matchesType = filter.value === '全部' || item.type === filter.value
-  const matchesCategory = categoryFilter.value === '全部' || item.category === categoryFilter.value
+  const matchesCategory = categoryFilter.value === '全部' || item.tags.includes(categoryFilter.value)
   const matchesLocation = locationFilter.value === '全部' || item.location.includes(locationFilter.value)
-  const matchesSearch = `${item.title}${item.location}${item.category}`.toLowerCase().includes(search.value.toLowerCase())
+  const matchesSearch = `${item.title}${item.location}${item.tags.join(' ')}`.toLowerCase().includes(search.value.toLowerCase())
   const matchesTime = (() => {
     if (timeFilter.value === '全部') return true
     const raw = item.date
@@ -156,7 +157,7 @@ function validateForm() {
   if (!form.value.title.trim()) nextErrors.title = '请输入物品名称'
   else if (form.value.title.trim().length < 2) nextErrors.title = '物品名称至少 2 个字符'
 
-  if (!form.value.category) nextErrors.category = '请选择物品分类'
+  if (!form.value.tags.length) nextErrors.tags = '请至少选择一个物品标签'
 
   if (!form.value.location.trim()) nextErrors.location = '请选择丢失或拾取地点'
 
@@ -177,6 +178,7 @@ function resetPublishForm() {
     type: 'lost' as ItemType,
     title: '',
     category: '',
+    tags: [],
     location: '',
     contact: '',
     desc: '',
@@ -228,6 +230,7 @@ function claim(item: Item) {
     <main class="main-content">
       <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><button class="icon-btn" @click="flash('暂无新的通知')">♧<i></i></button><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small">{{ store.currentUser.name.slice(0, 1) }}</span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button @click="handleLogout">退出登录</button></div></div></div></header>
       <div class="page-wrap">
+        <PublishForm v-if="store.activeRoute === 'publish'" />
         <section v-if="store.activeRoute === 'home'" class="page-section">
           <div class="welcome-row"><div><span class="eyebrow">WED · 06.17</span><h1>你好，{{ store.currentUser.name }} <span class="wave">✦</span></h1><p>今天也帮一件物品找到回家的路吧。</p></div><button class="primary-btn" @click="go('publish')">＋ 发布信息</button></div>
           <div class="notice-strip"><span class="notice-icon">✦</span><div><strong>{{ store.notices[0].title }}</strong><small>{{ store.notices[0].date }} · 查看详情 →</small></div><button @click="flash('公告已标记为已读')">×</button></div>
@@ -275,22 +278,23 @@ function claim(item: Item) {
               <div class="item-visual" :class="item.color"><span>{{ item.icon }}</span><em>{{ item.type === 'lost' ? '寻物' : '招领' }}</em></div>
               <div class="item-info"><div class="item-title"><h3>{{ item.title }}</h3><span :class="item.status === '已认领' ? 'done' : ''">{{ item.status }}</span></div><p>{{ item.desc }}</p><div class="item-meta"><span>⌖ {{ item.location }}</span><span>{{ item.date }}</span></div></div>
             </article>
-            <div v-if="!paginatedItems.length" class="empty-state">没有找到匹配的信息</div>
+            <div v-if="!filteredItems.length" class="empty-state"><el-empty description="暂时没有找到相关物品" /></div>
           </div>
 
           <div v-if="filteredItems.length" class="pagination-box">
             <el-pagination
               v-model:current-page="currentPage"
-              :page-size="pageSize"
+              v-model:page-size="pageSize"
+              :page-sizes="[6, 12, 18]"
               :total="filteredItems.length"
-              layout="prev, pager, next, total"
+              layout="total, sizes, prev, pager, next"
               background
-              @current-change="(page: number) => currentPage = page"
+              @size-change="currentPage = 1"
             />
           </div>
         </section>
 
-        <section v-else-if="store.activeRoute === 'publish'" class="page-section narrow"><div class="section-intro"><span class="eyebrow">CREATE A POST</span><h1>发布一条信息</h1><p>描述得越清楚，物品越快回到主人身边。</p></div><form class="form-panel" @submit.prevent="submitPost"><div class="segmented"><button type="button" :class="{ active: form.type === 'lost' }" @click="form.type = 'lost'">我丢失了物品</button><button type="button" :class="{ active: form.type === 'found' }" @click="form.type = 'found'">我捡到了物品</button></div><div class="form-grid"><label class="field"><span>物品名称</span><input v-model="form.title" :class="{ invalid: errors.title }" placeholder="例如：黑色折叠雨伞" /><small v-if="errors.title" class="field-error">{{ errors.title }}</small></label><label class="field"><span>物品分类</span><select v-model="form.category" :class="{ invalid: errors.category }"><option value="">请选择</option><option v-for="category in categoryOptions" :key="category" :value="category">{{ category }}</option></select><small v-if="errors.category" class="field-error">{{ errors.category }}</small></label><div class="field location-field"><span>丢失 / 拾取地点</span><div class="location-selector"><select v-model="locationSelections.campus" :class="{ invalid: errors.location }"><option value="">请选择校区</option><option v-for="campus in Object.keys(locationTree)" :key="campus" :value="campus">{{ campus }}</option></select><select v-model="locationSelections.building" :class="{ invalid: errors.location }" :disabled="!locationSelections.campus"><option value="">请选择地点</option><option v-for="building in buildingOptions" :key="building" :value="building">{{ building }}</option></select><select v-model="locationSelections.area" :class="{ invalid: errors.location }" :disabled="!locationSelections.building"><option value="">请选择具体位置</option><option v-for="area in areaOptions" :key="area" :value="area">{{ area }}</option></select></div><input v-model="form.location" placeholder="已选择的详细位置将在这里显示" readonly /><small v-if="errors.location" class="field-error">{{ errors.location }}</small></div><label class="field"><span>联系方式</span><input v-model="form.contact" :class="{ invalid: errors.contact }" placeholder="手机号或微信号" /><small v-if="errors.contact" class="field-error">{{ errors.contact }}</small></label><label class="field full"><span>详细描述</span><textarea v-model="form.desc" :class="{ invalid: errors.desc }" rows="4" placeholder="颜色、特征、时间等线索..."></textarea><small v-if="errors.desc" class="field-error">{{ errors.desc }}</small></label><div class="upload full"><div class="upload-header"><span>▧ 添加物品照片</span><small>支持 JPG、PNG，最多 3 张</small></div><label class="upload-box"><input type="file" accept="image/*" multiple @change="handleUpload" /><span>＋ 点击上传图片</span></label><div v-if="form.images.length" class="preview-grid"><div v-for="(image, index) in form.images" :key="image" class="preview-item"><el-image class="preview-image" :src="image" :preview-src-list="form.images" :initial-index="index" fit="cover" preview-teleported /><button type="button" class="remove-image" aria-label="删除图片" @click="removeImage(index)">×</button></div></div><small v-if="errors.images" class="field-error">{{ errors.images }}</small></div></div><button class="primary-btn" type="submit">提交审核 →</button></form></section>
+        <section v-else-if="false" class="page-section narrow"></section>
 
         <section v-else-if="store.activeRoute === 'posts' || store.activeRoute === 'claims'" class="page-section"><div class="section-intro"><span class="eyebrow">PERSONAL SPACE</span><h1>{{ pageTitle }}</h1><p>追踪你的每一次发布与认领进度。</p></div><div class="table-panel"><div v-if="store.activeRoute === 'posts'" v-for="item in myItems" :key="item.id" class="table-row"><div class="mini-visual" :class="item.color">{{ item.icon }}</div><div class="row-main"><strong>{{ item.title }}</strong><small>{{ item.location }} · {{ item.date }}</small></div><span class="status-pill">{{ item.status }}</span><button class="text-btn" @click="selectedItem = item">查看详情</button></div><div v-else v-for="claimItem in store.claims" :key="claimItem.id" class="table-row"><div class="mini-visual blue">♡</div><div class="row-main"><strong>{{ claimItem.item }}</strong><small>{{ claimItem.date }} · 申请人：{{ claimItem.applicant }}</small></div><span class="status-pill">{{ claimItem.status }}</span></div><div v-if="(store.activeRoute === 'posts' ? myItems : store.claims).length === 0" class="empty-state">这里还没有记录</div></div></section>
 
