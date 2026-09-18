@@ -24,6 +24,7 @@ export interface Item {
   icon: string
   desc: string
   contact?: string
+  images?: string[]
 }
 
 export interface Claim {
