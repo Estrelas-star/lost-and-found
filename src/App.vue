@@ -18,6 +18,8 @@ const timeFilter = ref('全部')
 const currentPage = ref(1)
 const pageSize = ref(6)
 const selectedItem = ref<Item | null>(null)
+const detailSlide = ref(0)
+const likedItems = ref<number[]>([])
 const notice = ref('')
 const profileMenuOpen = ref(false)
 const form = ref({ type: 'lost' as ItemType, title: '', category: '', tags: [] as string[], location: '', contact: '', desc: '', images: [] as string[] })
@@ -73,6 +75,10 @@ const paginatedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   return filteredItems.value.slice(start, start + pageSize.value)
 })
+const detailImages = computed(() => selectedItem.value?.images?.length ? selectedItem.value.images : [])
+const detailViews = computed(() => selectedItem.value ? 128 + selectedItem.value.id * 17 : 0)
+const detailLikes = computed(() => selectedItem.value ? 12 + selectedItem.value.id * 3 + (likedItems.value.includes(selectedItem.value.id) ? 1 : 0) : 0)
+const detailSaves = computed(() => selectedItem.value ? 8 + selectedItem.value.id * 2 + (store.favoriteItemIds.includes(selectedItem.value.id) ? 1 : 0) : 0)
 const myItems = computed(() => store.items.filter((item) => item.author === store.currentUser.name))
 const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
 const stats = computed(() => ({ total: store.items.length + 26, returned: store.items.filter((item) => item.status === '已认领').length + 18, pending: pendingItems.value.length + 8, rate: '68%' }))
@@ -115,6 +121,25 @@ watch(() => locationSelections.value.area, () => {
 function go(key: string) {
   selectedItem.value = null
   router.push({ name: key })
+}
+
+function openItem(item: Item) {
+  selectedItem.value = item
+  detailSlide.value = 0
+}
+
+function toggleLike() {
+  if (!selectedItem.value) return
+  const id = selectedItem.value.id
+  likedItems.value = likedItems.value.includes(id) ? likedItems.value.filter((itemId) => itemId !== id) : [...likedItems.value, id]
+}
+
+function toggleSave() {
+  if (!selectedItem.value) return
+  const id = selectedItem.value.id
+  const saved = store.favoriteItemIds.includes(id)
+  store.toggleFavorite(id)
+  flash(saved ? '已取消收藏' : '已收藏这条信息')
 }
 
 function handleLogout() {
@@ -274,7 +299,7 @@ function claim(item: Item) {
           </div>
 
           <div class="item-grid">
-            <article v-for="item in paginatedItems" :key="item.id" class="item-card" @click="selectedItem = item">
+            <article v-for="item in paginatedItems" :key="item.id" class="item-card" @click="openItem(item)">
               <div class="item-visual" :class="item.color"><span>{{ item.icon }}</span><em>{{ item.type === 'lost' ? '寻物' : '招领' }}</em></div>
               <div class="item-info"><div class="item-title"><h3>{{ item.title }}</h3><span :class="item.status === '已认领' ? 'done' : ''">{{ item.status }}</span></div><p>{{ item.desc }}</p><div class="item-meta"><span>⌖ {{ item.location }}</span><span>{{ item.date }}</span></div></div>
             </article>
@@ -305,7 +330,7 @@ function claim(item: Item) {
         <section v-else-if="store.activeRoute === 'users' || store.activeRoute === 'notices'" class="page-section"><div class="section-intro"><span class="eyebrow">SYSTEM SETTINGS</span><h1>{{ pageTitle }}</h1><p>{{ store.activeRoute === 'users' ? '管理校园账号、角色与访问权限。' : '让重要消息抵达每一位同学。' }}</p></div><div class="table-panel"><div v-for="row in (store.activeRoute === 'users' ? [{ name: '林知夏', id: '2023010218', role: '普通学生', state: '正常' }, { name: '赵老师', id: 'LF-ADMIN-01', role: '失物招领管理员', state: '正常' }, { name: '陈老师', id: 'SYS-ADMIN-01', role: '系统管理员', state: '正常' }] : store.notices)" :key="row.id || row.title" class="table-row"><div class="mini-visual mint">{{ store.activeRoute === 'users' ? row.name.slice(0, 1) : '✦' }}</div><div class="row-main"><strong>{{ row.name || row.title }}</strong><small>{{ row.id || row.date }} · {{ row.role || '公告内容管理' }}</small></div><span class="status-pill">{{ row.state || row.tag }}</span><button class="text-btn" @click="flash('编辑功能已打开')">编辑</button></div></div></section>
       </div>
     </main>
-    <div v-if="selectedItem" class="modal-backdrop" @click.self="selectedItem = null"><div class="detail-modal"><button class="modal-close" @click="selectedItem = null">×</button><div class="detail-art" :class="selectedItem.color">{{ selectedItem.icon }}</div><span class="eyebrow">{{ selectedItem.type === 'lost' ? '寻物信息' : '招领信息' }} · {{ selectedItem.date }}</span><h2>{{ selectedItem.title }}</h2><p>{{ selectedItem.desc }}</p><div class="detail-lines"><span>⌖ {{ selectedItem.location }}</span><span>发布人：{{ selectedItem.author }}</span></div><button v-if="store.role === 'student' && selectedItem.status !== '已认领'" class="primary-btn full-btn" @click="claim(selectedItem)">提交认领申请</button></div></div>
+    <div v-if="selectedItem" class="modal-backdrop" @click.self="selectedItem = null"><div class="detail-modal detail-modal-rich"><div class="detail-modal-actions"><button class="modal-action" @click="flash('举报信息已提交')">⚑ 举报</button><button class="modal-close" @click="selectedItem = null">×</button></div><div class="detail-gallery"><el-carousel v-if="detailImages.length" v-model="detailSlide" height="250px" arrow="always" indicator-position="outside"><el-carousel-item v-for="image in detailImages" :key="image"><img :src="image" alt="物品照片" /></el-carousel-item></el-carousel><div v-else class="detail-art" :class="selectedItem.color"><span>{{ selectedItem.icon }}</span><small>暂无照片</small></div></div><div class="detail-content"><span class="eyebrow">{{ selectedItem.type === 'lost' ? '寻物信息' : '招领信息' }} · {{ selectedItem.date }}</span><h2>{{ selectedItem.title }}</h2><div class="detail-tags"><el-tag v-for="tag in selectedItem.tags" :key="tag" effect="light">{{ tag }}</el-tag></div><p>{{ selectedItem.desc }}</p><div class="detail-lines"><span>⌖ {{ selectedItem.location }}</span><span>◷ {{ selectedItem.date }}</span><span>发布人：{{ selectedItem.author }}</span></div><div class="detail-stats"><span>◉ {{ detailViews }} 浏览</span><button type="button" :class="{ active: likedItems.includes(selectedItem.id) }" @click="toggleLike">♡ {{ detailLikes }} 点赞</button><button type="button" class="favorite-stat" :class="{ active: store.favoriteItemIds.includes(selectedItem.id) }" @click="toggleSave"><span>{{ store.favoriteItemIds.includes(selectedItem.id) ? '♥' : '♡' }}</span> {{ detailSaves }} 收藏</button></div><button v-if="store.role === 'student' && selectedItem.status !== '已认领'" class="primary-btn full-btn" @click="claim(selectedItem)">申请认领</button></div></div></div>
     <div v-if="notice" class="toast">✓ {{ notice }}</div>
   </div>
 </template>

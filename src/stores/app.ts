@@ -57,6 +57,7 @@ export const useAppStore = defineStore('app', () => {
     { id: 5, type: 'found', title: '一串钥匙', tags: ['其他'], location: '西门快递站', date: '06-12', status: '已认领', author: '拾光志愿者', color: 'yellow', icon: '⌘', desc: '三把钥匙，附有蓝色小挂件。' }
   ])
   const claims = ref<Claim[]>([{ id: 1, item: '黑色 AirPods Pro 2', applicant: '林同学', date: '06-15 14:20', status: '审核中' }])
+  const favoriteItemIds = ref<number[]>([])
 
   const currentUser = computed(() => users[role.value])
   const pendingCount = computed(() => items.value.filter((item) => item.status === '待审核').length + claims.value.filter((claim) => claim.status === '审核中').length)
@@ -82,6 +83,11 @@ export const useAppStore = defineStore('app', () => {
   function submitClaim(item: Item) { claims.value.unshift({ id: Date.now(), item: item.title, applicant: currentUser.value.name, date: '刚刚', status: '审核中' }) }
   function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '招领中' }
   function updateClaim(id: number, status: string) { const claim = claims.value.find((entry) => entry.id === id); if (claim) claim.status = status }
+  function toggleFavorite(id: number) {
+    favoriteItemIds.value = favoriteItemIds.value.includes(id)
+      ? favoriteItemIds.value.filter((itemId) => itemId !== id)
+      : [...favoriteItemIds.value, id]
+  }
 
-  return { role, activeRoute, isAuthenticated, notices, items, claims, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, submitClaim, approve, updateClaim }
+  return { role, activeRoute, isAuthenticated, notices, items, claims, favoriteItemIds, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, submitClaim, approve, updateClaim, toggleFavorite }
 })
