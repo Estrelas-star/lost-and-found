@@ -35,6 +35,19 @@ export interface Claim {
   status: string
 }
 
+export interface Comment {
+  id: number
+  itemId: number
+  author: string
+  avatar: string
+  date: string
+  content: string
+  likes: number
+  liked: boolean
+  parentId?: number
+  replyTo?: string
+}
+
 const users: Record<Role, User> = {
   student: { name: '林知夏', id: '2023010218', label: '普通学生' },
   itemAdmin: { name: '赵老师', id: 'LF-ADMIN-01', label: '失物招领管理员' },
@@ -58,6 +71,12 @@ export const useAppStore = defineStore('app', () => {
   ])
   const claims = ref<Claim[]>([{ id: 1, item: '黑色 AirPods Pro 2', applicant: '林同学', date: '06-15 14:20', status: '审核中' }])
   const favoriteItemIds = ref<number[]>([])
+  const likedItemIds = ref<number[]>([])
+  const comments = ref<Comment[]>([
+    { id: 1, itemId: 1, author: '林知夏', avatar: '林', date: '今天 09:24', content: '请问是在图书馆哪一侧的自习区找到的呢？', likes: 3, liked: false },
+    { id: 2, itemId: 1, author: '李同学', avatar: '李', date: '今天 09:31', content: '是在三楼靠窗的位置，已经交给服务台了。', likes: 5, liked: false, parentId: 1, replyTo: '林知夏' },
+    { id: 3, itemId: 2, author: '周同学', avatar: '周', date: '昨天 18:42', content: '如果有看到蓝色帆布包，麻烦帮忙留意一下，谢谢！', likes: 2, liked: false }
+  ])
 
   const currentUser = computed(() => users[role.value])
   const pendingCount = computed(() => items.value.filter((item) => item.status === '待审核').length + claims.value.filter((claim) => claim.status === '审核中').length)
@@ -88,6 +107,20 @@ export const useAppStore = defineStore('app', () => {
       ? favoriteItemIds.value.filter((itemId) => itemId !== id)
       : [...favoriteItemIds.value, id]
   }
+  function toggleItemLike(id: number) {
+    likedItemIds.value = likedItemIds.value.includes(id)
+      ? likedItemIds.value.filter((itemId) => itemId !== id)
+      : [...likedItemIds.value, id]
+  }
+  function addComment(comment: Omit<Comment, 'id' | 'date' | 'likes' | 'liked'>) {
+    comments.value.push({ ...comment, id: Date.now(), date: '刚刚', likes: 0, liked: false })
+  }
+  function toggleCommentLike(id: number) {
+    const comment = comments.value.find((entry) => entry.id === id)
+    if (!comment) return
+    comment.liked = !comment.liked
+    comment.likes += comment.liked ? 1 : -1
+  }
 
-  return { role, activeRoute, isAuthenticated, notices, items, claims, favoriteItemIds, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, submitClaim, approve, updateClaim, toggleFavorite }
+  return { role, activeRoute, isAuthenticated, notices, items, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, submitClaim, approve, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike }
 })

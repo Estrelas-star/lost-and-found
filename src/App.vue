@@ -6,6 +6,7 @@ import { useAppStore, type Item, type ItemType, type Role } from './stores/app'
 import { navItems } from './navigation'
 import MetricCard from './components/MetricCard.vue'
 import PublishForm from './components/PublishForm.vue'
+import DetailDialog from './components/DetailDialog.vue'
 
 const store = useAppStore()
 const router = useRouter()
@@ -18,6 +19,7 @@ const timeFilter = ref('全部')
 const currentPage = ref(1)
 const pageSize = ref(6)
 const selectedItem = ref<Item | null>(null)
+const detailDialogVisible = ref(false)
 const detailSlide = ref(0)
 const likedItems = ref<number[]>([])
 const notice = ref('')
@@ -79,6 +81,9 @@ const detailImages = computed(() => selectedItem.value?.images?.length ? selecte
 const detailViews = computed(() => selectedItem.value ? 128 + selectedItem.value.id * 17 : 0)
 const detailLikes = computed(() => selectedItem.value ? 12 + selectedItem.value.id * 3 + (likedItems.value.includes(selectedItem.value.id) ? 1 : 0) : 0)
 const detailSaves = computed(() => selectedItem.value ? 8 + selectedItem.value.id * 2 + (store.favoriteItemIds.includes(selectedItem.value.id) ? 1 : 0) : 0)
+const commentText = ref('')
+const replyTarget = ref<{ id: number, author: string } | null>(null)
+const detailComments = computed(() => selectedItem.value ? store.comments.filter((comment) => comment.itemId === selectedItem.value?.id) : [])
 const myItems = computed(() => store.items.filter((item) => item.author === store.currentUser.name))
 const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
 const stats = computed(() => ({ total: store.items.length + 26, returned: store.items.filter((item) => item.status === '已认领').length + 18, pending: pendingItems.value.length + 8, rate: '68%' }))
@@ -125,7 +130,23 @@ function go(key: string) {
 
 function openItem(item: Item) {
   selectedItem.value = item
+  detailDialogVisible.value = true
   detailSlide.value = 0
+  commentText.value = ''
+  replyTarget.value = null
+}
+
+function closeDetailDialog() {
+  detailDialogVisible.value = false
+  selectedItem.value = null
+}
+
+function sendComment() {
+  const content = commentText.value.trim()
+  if (!selectedItem.value || !content) return
+  store.addComment({ itemId: selectedItem.value.id, author: store.currentUser.name, avatar: store.currentUser.name.slice(0, 1), content, parentId: replyTarget.value?.id, replyTo: replyTarget.value?.author })
+  commentText.value = ''
+  replyTarget.value = null
 }
 
 function toggleLike() {
@@ -330,7 +351,8 @@ function claim(item: Item) {
         <section v-else-if="store.activeRoute === 'users' || store.activeRoute === 'notices'" class="page-section"><div class="section-intro"><span class="eyebrow">SYSTEM SETTINGS</span><h1>{{ pageTitle }}</h1><p>{{ store.activeRoute === 'users' ? '管理校园账号、角色与访问权限。' : '让重要消息抵达每一位同学。' }}</p></div><div class="table-panel"><div v-for="row in (store.activeRoute === 'users' ? [{ name: '林知夏', id: '2023010218', role: '普通学生', state: '正常' }, { name: '赵老师', id: 'LF-ADMIN-01', role: '失物招领管理员', state: '正常' }, { name: '陈老师', id: 'SYS-ADMIN-01', role: '系统管理员', state: '正常' }] : store.notices)" :key="row.id || row.title" class="table-row"><div class="mini-visual mint">{{ store.activeRoute === 'users' ? row.name.slice(0, 1) : '✦' }}</div><div class="row-main"><strong>{{ row.name || row.title }}</strong><small>{{ row.id || row.date }} · {{ row.role || '公告内容管理' }}</small></div><span class="status-pill">{{ row.state || row.tag }}</span><button class="text-btn" @click="flash('编辑功能已打开')">编辑</button></div></div></section>
       </div>
     </main>
-    <div v-if="selectedItem" class="modal-backdrop" @click.self="selectedItem = null"><div class="detail-modal detail-modal-rich"><div class="detail-modal-actions"><button class="modal-action" @click="flash('举报信息已提交')">⚑ 举报</button><button class="modal-close" @click="selectedItem = null">×</button></div><div class="detail-gallery"><el-carousel v-if="detailImages.length" v-model="detailSlide" height="250px" arrow="always" indicator-position="outside"><el-carousel-item v-for="image in detailImages" :key="image"><img :src="image" alt="物品照片" /></el-carousel-item></el-carousel><div v-else class="detail-art" :class="selectedItem.color"><span>{{ selectedItem.icon }}</span><small>暂无照片</small></div></div><div class="detail-content"><span class="eyebrow">{{ selectedItem.type === 'lost' ? '寻物信息' : '招领信息' }} · {{ selectedItem.date }}</span><h2>{{ selectedItem.title }}</h2><div class="detail-tags"><el-tag v-for="tag in selectedItem.tags" :key="tag" effect="light">{{ tag }}</el-tag></div><p>{{ selectedItem.desc }}</p><div class="detail-lines"><span>⌖ {{ selectedItem.location }}</span><span>◷ {{ selectedItem.date }}</span><span>发布人：{{ selectedItem.author }}</span></div><div class="detail-stats"><span>◉ {{ detailViews }} 浏览</span><button type="button" :class="{ active: likedItems.includes(selectedItem.id) }" @click="toggleLike">♡ {{ detailLikes }} 点赞</button><button type="button" class="favorite-stat" :class="{ active: store.favoriteItemIds.includes(selectedItem.id) }" @click="toggleSave"><span>{{ store.favoriteItemIds.includes(selectedItem.id) ? '♥' : '♡' }}</span> {{ detailSaves }} 收藏</button></div><button v-if="store.role === 'student' && selectedItem.status !== '已认领'" class="primary-btn full-btn" @click="claim(selectedItem)">申请认领</button></div></div></div>
+    <DetailDialog :item="selectedItem" :visible="detailDialogVisible" @close="closeDetailDialog" />
+    <div v-if="selectedItem" class="modal-backdrop" @click.self="selectedItem = null"><div class="detail-modal detail-modal-rich"><div class="detail-modal-actions"><button class="modal-action" @click="flash('举报信息已提交')">⚑ 举报</button><button class="modal-close" @click="selectedItem = null">×</button></div><div class="detail-gallery"><el-carousel v-if="detailImages.length" v-model="detailSlide" height="250px" arrow="always" indicator-position="outside"><el-carousel-item v-for="image in detailImages" :key="image"><img :src="image" alt="物品照片" /></el-carousel-item></el-carousel><div v-else class="detail-art" :class="selectedItem.color"><span>{{ selectedItem.icon }}</span><small>暂无照片</small></div></div><div class="detail-content"><span class="eyebrow">{{ selectedItem.type === 'lost' ? '寻物信息' : '招领信息' }} · {{ selectedItem.date }}</span><h2>{{ selectedItem.title }}</h2><div class="detail-tags"><el-tag v-for="tag in selectedItem.tags" :key="tag" effect="light">{{ tag }}</el-tag></div><p>{{ selectedItem.desc }}</p><div class="detail-lines"><span>⌖ {{ selectedItem.location }}</span><span>◷ {{ selectedItem.date }}</span><span>发布人：{{ selectedItem.author }}</span></div><div class="detail-stats"><span>◉ {{ detailViews }} 浏览</span><button type="button" :class="{ active: likedItems.includes(selectedItem.id) }" @click="toggleLike">♡ {{ detailLikes }} 点赞</button><button type="button" class="favorite-stat" :class="{ active: store.favoriteItemIds.includes(selectedItem.id) }" @click="toggleSave"><span>{{ store.favoriteItemIds.includes(selectedItem.id) ? '♥' : '♡' }}</span> {{ detailSaves }} 收藏</button></div><button v-if="store.role === 'student' && selectedItem.status !== '已认领'" class="primary-btn full-btn" @click="claim(selectedItem)">申请认领</button><section class="comments-section"><div class="comments-heading"><h3>评论区</h3><span>{{ detailComments.length }} 条评论</span></div><div v-if="replyTarget" class="replying-to">正在回复 @{{ replyTarget.author }}<button type="button" @click="replyTarget = null">取消</button></div><div class="comment-composer"><el-input v-model="commentText" type="textarea" :rows="2" :placeholder="replyTarget ? `回复 @${replyTarget.author}` : '说说你的看法...'" maxlength="200" show-word-limit /><button type="button" class="send-comment" aria-label="发送评论" @click="sendComment">➤</button></div><div class="comment-list"><article v-for="comment in detailComments" :key="comment.id" class="comment-item" :class="{ 'comment-reply': comment.parentId }"><div class="comment-avatar">{{ comment.avatar }}</div><div class="comment-body"><div class="comment-meta"><strong>{{ comment.author }}</strong><time>{{ comment.date }}</time></div><p v-if="comment.replyTo" class="reply-label">回复 @{{ comment.replyTo }}</p><p class="comment-text">{{ comment.content }}</p><div class="comment-actions"><button type="button" @click="replyTarget = { id: comment.id, author: comment.author }">回复</button><button type="button" :class="{ active: comment.liked }" @click="store.toggleCommentLike(comment.id)">♡ {{ comment.likes }}</button></div></div></article><el-empty v-if="!detailComments.length" description="还没有评论，来留下第一条吧" :image-size="70" /></div></section></div></div></div>
     <div v-if="notice" class="toast">✓ {{ notice }}</div>
   </div>
 </template>
