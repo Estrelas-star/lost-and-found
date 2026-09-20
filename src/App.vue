@@ -7,6 +7,7 @@ import { navItems } from './navigation'
 import MetricCard from './components/MetricCard.vue'
 import PublishForm from './components/PublishForm.vue'
 import DetailDialog from './components/DetailDialog.vue'
+import AuditCenter from './components/AuditCenter.vue'
 
 const store = useAppStore()
 const router = useRouter()
@@ -86,6 +87,21 @@ const replyTarget = ref<{ id: number, author: string } | null>(null)
 const detailComments = computed(() => selectedItem.value ? store.comments.filter((comment) => comment.itemId === selectedItem.value?.id) : [])
 const myItems = computed(() => store.items.filter((item) => item.author === store.currentUser.name))
 const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
+const auditStatusFilter = ref<'全部' | '待审核'>('全部')
+const auditTypeFilter = ref<'全部' | ItemType>('全部')
+const auditSearch = ref('')
+const auditPage = ref(1)
+const auditPageSize = ref(6)
+const rejectDialogVisible = ref(false)
+const rejectReason = ref('')
+const rejectingItemId = ref<number | null>(null)
+const auditItems = computed(() => pendingItems.value.filter((item) => {
+  const matchesStatus = auditStatusFilter.value === '全部' || item.status === auditStatusFilter.value
+  const matchesType = auditTypeFilter.value === '全部' || item.type === auditTypeFilter.value
+  const matchesSearch = `${item.title}${item.author}${item.location}${item.tags.join(' ')}`.toLowerCase().includes(auditSearch.value.trim().toLowerCase())
+  return matchesStatus && matchesType && matchesSearch
+}))
+const paginatedAuditItems = computed(() => auditItems.value.slice((auditPage.value - 1) * auditPageSize.value, auditPage.value * auditPageSize.value))
 const stats = computed(() => ({ total: store.items.length + 26, returned: store.items.filter((item) => item.status === '已认领').length + 18, pending: pendingItems.value.length + 8, rate: '68%' }))
 const buildingOptions = computed(() => Object.keys(locationTree[locationSelections.value.campus as keyof typeof locationTree] ?? {}))
 const areaOptions = computed(() => (locationSelections.value.campus && locationSelections.value.building ? locationTree[locationSelections.value.campus as keyof typeof locationTree][locationSelections.value.building as keyof typeof locationTree[keyof typeof locationTree]] ?? [] : []))
@@ -93,6 +109,7 @@ const areaOptions = computed(() => (locationSelections.value.campus && locationS
 watch([filter, categoryFilter, locationFilter, timeFilter, search], () => {
   currentPage.value = 1
 })
+watch([auditStatusFilter, auditTypeFilter, auditSearch], () => { auditPage.value = 1 })
 
 const roleHome = { student: 'home', itemAdmin: 'audit', systemAdmin: 'dashboard' } as const
 
@@ -255,6 +272,22 @@ function claim(item: Item) {
   store.submitClaim(item)
   flash('认领申请已提交，请等待审核')
 }
+
+function openRejectDialog(id: number) {
+  rejectingItemId.value = id
+  rejectReason.value = ''
+  rejectDialogVisible.value = true
+}
+
+function submitReject() {
+  if (!rejectingItemId.value || !rejectReason.value.trim()) {
+    flash('请填写驳回原因')
+    return
+  }
+  store.reject(rejectingItemId.value, rejectReason.value.trim())
+  rejectDialogVisible.value = false
+  flash('已驳回该信息')
+}
 </script>
 
 <template>
@@ -276,6 +309,7 @@ function claim(item: Item) {
     <main class="main-content">
       <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><button class="icon-btn" @click="flash('暂无新的通知')">♧<i></i></button><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small">{{ store.currentUser.name.slice(0, 1) }}</span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button @click="handleLogout">退出登录</button></div></div></div></header>
       <div class="page-wrap">
+        <AuditCenter v-if="store.activeRoute === 'audit'" />
         <PublishForm v-if="store.activeRoute === 'publish'" />
         <section v-if="store.activeRoute === 'home'" class="page-section">
           <div class="welcome-row"><div><span class="eyebrow">WED · 06.17</span><h1>你好，{{ store.currentUser.name }} <span class="wave">✦</span></h1><p>今天也帮一件物品找到回家的路吧。</p></div><button class="primary-btn" @click="go('publish')">＋ 发布信息</button></div>
@@ -344,7 +378,7 @@ function claim(item: Item) {
 
         <section v-else-if="store.activeRoute === 'posts' || store.activeRoute === 'claims'" class="page-section"><div class="section-intro"><span class="eyebrow">PERSONAL SPACE</span><h1>{{ pageTitle }}</h1><p>追踪你的每一次发布与认领进度。</p></div><div class="table-panel"><div v-if="store.activeRoute === 'posts'" v-for="item in myItems" :key="item.id" class="table-row"><div class="mini-visual" :class="item.color">{{ item.icon }}</div><div class="row-main"><strong>{{ item.title }}</strong><small>{{ item.location }} · {{ item.date }}</small></div><span class="status-pill">{{ item.status }}</span><button class="text-btn" @click="selectedItem = item">查看详情</button></div><div v-else v-for="claimItem in store.claims" :key="claimItem.id" class="table-row"><div class="mini-visual blue">♡</div><div class="row-main"><strong>{{ claimItem.item }}</strong><small>{{ claimItem.date }} · 申请人：{{ claimItem.applicant }}</small></div><span class="status-pill">{{ claimItem.status }}</span></div><div v-if="(store.activeRoute === 'posts' ? myItems : store.claims).length === 0" class="empty-state">这里还没有记录</div></div></section>
 
-        <section v-else-if="store.activeRoute === 'audit' || store.activeRoute === 'manage'" class="page-section"><div class="section-intro"><span class="eyebrow">OPERATIONS</span><h1>{{ pageTitle }}</h1><p>让每一条信息都准确、可信、及时。</p></div><div class="metrics"><MetricCard label="待处理审核" :value="pendingItems.length" trend="需要你的判断" tone="mint"/><MetricCard label="本周已处理" value="32" trend="较上周 +12%" tone="yellow"/><MetricCard label="待认领物品" value="24" trend="持续跟进中" tone="blue"/></div><div class="table-panel"><div v-for="item in (store.activeRoute === 'audit' ? pendingItems : store.items)" :key="item.id" class="table-row"><div class="mini-visual" :class="item.color">{{ item.icon }}</div><div class="row-main"><strong>{{ item.title }}</strong><small>{{ item.type === 'lost' ? '寻物' : '招领' }} · {{ item.location }} · {{ item.author }}</small></div><span class="status-pill">{{ item.status }}</span><button v-if="store.activeRoute === 'audit' && item.status === '待审核'" class="approve-btn" @click="store.approve(item.id); flash('已通过审核')">通过审核</button><button class="text-btn" @click="selectedItem = item">查看</button></div></div></section>
+        <section v-else-if="store.activeRoute === 'audit'" class="page-section audit-page"><div class="section-intro"><span class="eyebrow">OPERATIONS</span><h1>审核中心</h1><p>集中处理新提交的失物招领信息。</p></div><div class="metrics"><MetricCard label="待处理审核" :value="pendingItems.length" trend="需要你的判断" tone="mint"/><MetricCard label="本周已处理" value="32" trend="较上周 +12%" tone="yellow"/><MetricCard label="当前筛选结果" :value="auditItems.length" trend="实时更新" tone="blue"/></div><div class="audit-toolbar"><el-input v-model="auditSearch" clearable placeholder="搜索物品名称、发布者或地点" class="audit-search"/><el-select v-model="auditStatusFilter" placeholder="按状态"><el-option label="全部状态" value="全部"/><el-option label="待审核" value="待审核"/></el-select><el-select v-model="auditTypeFilter" placeholder="按类型"><el-option label="全部类型" value="全部"/><el-option label="寻物" value="lost"/><el-option label="招领" value="found"/></el-select></div><div class="audit-table-wrap"><el-table :data="auditItems" stripe empty-text="暂无待审核信息"><el-table-column label="图片" width="82"><template #default="{ row }"><div class="audit-thumb" :class="row.color"><img v-if="row.images?.[0]" :src="row.images[0]" alt="物品图片"/><span v-else>{{ row.icon }}</span></div></template></el-table-column><el-table-column prop="title" label="物品名称" min-width="170"/><el-table-column label="分类" min-width="130"><template #default="{ row }"><div class="audit-tags"><el-tag v-for="tag in row.tags" :key="tag" size="small">{{ tag }}</el-tag></div></template></el-table-column><el-table-column prop="author" label="发布者" min-width="100"/><el-table-column prop="date" label="发布时间" min-width="100"/><el-table-column label="当前状态" min-width="100"><template #default="{ row }"><el-tag type="warning">{{ row.status }}</el-tag></template></el-table-column><el-table-column label="操作" fixed="right" width="160"><template #default="{ row }"><el-button type="success" link @click="store.approve(row.id); flash('已通过审核')">通过</el-button><el-button type="danger" link @click="flash('驳回功能下一步接入')">驳回</el-button></template></el-table-column></el-table></div></section><section v-else-if="store.activeRoute === 'manage'" class="page-section"><div class="section-intro"><span class="eyebrow">OPERATIONS</span><h1>{{ pageTitle }}</h1><p>让每一条信息都准确、可信、及时。</p></div><div class="table-panel"><div v-for="item in store.items" :key="item.id" class="table-row"><div class="mini-visual" :class="item.color">{{ item.icon }}</div><div class="row-main"><strong>{{ item.title }}</strong><small>{{ item.location }} · {{ item.author }}</small></div><span class="status-pill">{{ item.status }}</span></div></div></section>
 
         <section v-else-if="store.activeRoute === 'dashboard'" class="page-section"><div class="section-intro"><span class="eyebrow">OVERVIEW · JUNE 2026</span><h1>校园失物招领总览</h1><p>数据会说话，看看校园里正在发生什么。</p></div><div class="metrics"><MetricCard label="累计发布" :value="stats.total" trend="较上月 +18%" tone="mint"/><MetricCard label="成功归还" :value="stats.returned" trend="归还率持续提升" tone="yellow"/><MetricCard label="待处理" :value="stats.pending" trend="今日需关注" tone="coral"/><MetricCard label="总体归还率" :value="stats.rate" trend="较上月 +6.4%" tone="blue"/></div><div class="dashboard-grid"><div class="chart-panel"><div class="panel-head"><h2>近 30 日趋势</h2><span>发布量 / 归还量</span></div><div class="fake-chart"><div v-for="(height, index) in [38, 56, 48, 72, 62, 80, 68, 92, 76, 88, 72, 96]" :key="index" class="bar-group"><i :style="{ height: height + '%' }"></i><b :style="{ height: height * .62 + '%' }"></b></div></div><div class="chart-labels"><span>05.19</span><span>05.26</span><span>06.02</span><span>06.09</span><span>06.16</span></div></div><div class="ranking-panel"><div class="panel-head"><h2>高频地点</h2><span>发布数量</span></div><div v-for="(place, index) in [['图书馆', 42], ['南区食堂', 36], ['体育馆', 29], ['教学楼', 21]]" :key="place[0]" class="rank-row"><span>0{{ index + 1 }}</span><strong>{{ place[0] }}</strong><i><b :style="{ width: place[1] * 2 + '%' }"></b></i><em>{{ place[1] }}</em></div></div></div></section>
 

@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 
 export type Role = 'student' | 'itemAdmin' | 'systemAdmin'
 export type ItemType = 'lost' | 'found'
-export type ItemStatus = '待审核' | '招领中' | '待认领' | '已认领'
+export type ItemStatus = '待审核' | '招领中' | '待认领' | '已认领' | '已驳回'
 
 export interface User {
   name: string
@@ -101,6 +101,7 @@ export const useAppStore = defineStore('app', () => {
   }
   function submitClaim(item: Item) { claims.value.unshift({ id: Date.now(), item: item.title, applicant: currentUser.value.name, date: '刚刚', status: '审核中' }) }
   function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '招领中' }
+  function reject(id: number, reason: string) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '已驳回' }
   function updateClaim(id: number, status: string) { const claim = claims.value.find((entry) => entry.id === id); if (claim) claim.status = status }
   function toggleFavorite(id: number) {
     favoriteItemIds.value = favoriteItemIds.value.includes(id)
@@ -122,5 +123,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, submitClaim, approve, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike }
+  return { role, activeRoute, isAuthenticated, notices, items, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike }
 })
