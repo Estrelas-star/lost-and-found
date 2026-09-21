@@ -8,7 +8,6 @@ export function setAuth(token: string, user: unknown) {
   document.cookie = `${USER_KEY}=${encodeURIComponent(JSON.stringify(user))}; max-age=${maxAge}; path=/; SameSite=Lax`
 }
 
-/** 读取 token (http.ts 会把它放进请求头 Authorization) */
 export function getToken(): string {
   const m = document.cookie.match(new RegExp(`(?:^| )${TOKEN_KEY}=([^;]+)`))
   return m ? decodeURIComponent(m[1]) : ''
@@ -25,7 +24,7 @@ export function getStoredUser<T = unknown>(): T | null {
   }
 }
 
-/** 退出登录: 清空 cookie (导师要求的"退出函数清空 cookie") */
+/** 退出登录: 清空 cookie  */
 export function clearAuth() {
   document.cookie = `${TOKEN_KEY}=; max-age=0; path=/`
   document.cookie = `${USER_KEY}=; max-age=0; path=/`
