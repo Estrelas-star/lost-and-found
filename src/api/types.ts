@@ -1,25 +1,22 @@
-// 对齐后端 model/basic 与 response.CommonResponse
-// 技术栈: TypeScript 
-
-/** 后端统一返回结构: { code, message, data } */
 export interface ApiResponse<T> {
   code: number
   message: string
   data: T
 }
 
-/** 后端 UserResponse (model/basic) —— 字段以 swagger 为准 */
+/**  UserResponse */
 export interface UserResponse {
   id: number
   username: string
   nickname: string
-  role: number        // 0=普通学生 1=失物招领管理员 2=系统管理员 (数字含义需向后端确认)
-  status: number
-  credit: number
+  role: number        // 0=普通学生 1=业务管理员 2=系统管理员
+  status: number      // 0=禁用 1=正常
+  credit: number      // 积分
   avatar: string
   qq: string
   realname: string
   gender: number
+  last_login_at: string
   created_at: string
   updated_at: string
 }
@@ -43,4 +40,30 @@ export interface UpdateUserRequest {
   realname?: string
   gender?: number
   avatar?: string
+}
+
+
+export interface ChangeUserRoleRequest {
+  id: number      // 目标用户的 id
+  role: number    // 0=普通 1=业务管理员 2=系统管理员
+}
+
+/** 管理员改变用户状态 */
+export interface ChangeUserStatusRequest {
+  id: number      // 目标用户的 id
+  status: number  // 0=禁用 1=正常
+}
+
+/** 管理员改变用户积分 */
+export interface AddUserCreditRequest {
+  id: number            // 目标用户的 id
+  credit: number        // 变动的积分值
+  operator_id: number   // 操作人(管理员自己)的用户 id
+  type: number
+  description?: string
+}
+
+/** 根据 id 批量获取用户列表 */
+export interface BatchRequest {
+  ids: number[]   // 用户 id 数组
 }
