@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAppStore, type Role } from '../stores/app'
+import { useAppStore } from '../stores/app'
 
 const router = useRouter()
 const route = useRoute()
 const store = useAppStore()
 const account = ref('')
 const password = ref('')
-const selectedRole = ref<Role>('student')
 const errorMessage = ref('')
 
 async function submitLogin() {
@@ -42,7 +41,6 @@ async function submitLogin() {
         <form @submit.prevent="submitLogin">
           <label>校园账号<input v-model="account" placeholder="用户名" autocomplete="username" /></label>
           <label>密码<input v-model="password" type="password" placeholder="请输入密码" autocomplete="current-password" /></label>
-          <label>登录身份<select v-model="selectedRole"><option value="student">普通学生</option><option value="itemAdmin">失物招领管理员</option><option value="systemAdmin">系统管理员</option></select></label>
           <p v-if="errorMessage" class="login-error">{{ errorMessage }}</p>
           <button class="primary-btn login-btn" type="submit">进入工作台 →</button>
         </form>

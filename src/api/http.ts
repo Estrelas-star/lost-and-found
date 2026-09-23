@@ -4,6 +4,15 @@ import type { ApiResponse } from './types'
 // 走 Vite 代理(见 vite.config.ts), /api 会被转发到后端, 避免浏览器跨域报错
 const BASE_URL = '/api/v1'
 
+// 解析响应 JSON；body 不是合法 JSON 时给出友好的服务器错误提示
+async function parseJsonSafe<T>(res: Response): Promise<ApiResponse<T>> {
+  try {
+    return (await res.json()) as ApiResponse<T>
+  } catch {
+    throw new Error(`服务器返回异常 (HTTP ${res.status})`)
+  }
+}
+
 /** 通用请求: 成功返回 data, 失败抛错 */
 export async function request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const headers = new Headers(options.headers)
@@ -12,7 +21,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   if (token) headers.set('Authorization', token) // token 已含 "Bearer " 前缀
 
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
-  const json = (await res.json()) as ApiResponse<T>
+  const json = await parseJsonSafe<T>(res)
   if (json.code !== 0) throw new Error(json.message || '请求失败')
   return json
 }
@@ -26,7 +35,7 @@ export async function requestWithHeaderToken<T>(
   headers.set('Content-Type', 'application/json')
 
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
-  const json = (await res.json()) as ApiResponse<T>
+  const json = await parseJsonSafe<T>(res)
   if (json.code !== 0) throw new Error(json.message || '请求失败')
   const token = res.headers.get('Authorization') ?? ''
   return { data: json.data, token }

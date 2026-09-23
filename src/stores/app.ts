@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
-import { login as apiLogin } from '../api/user'
-import { setAuth, clearAuth, getToken } from '../utils/auth'
+import { login as apiLogin, logout as apiLogout } from '../api/user'
+import { setAuth, clearAuth, getToken, getStoredUser } from '../utils/auth'
+import type { UserResponse } from '../api/types'
 
 import { defineStore } from 'pinia'
 
@@ -57,6 +58,14 @@ const users: Record<Role, User> = {
   systemAdmin: { name: '陈老师', id: 'SYS-ADMIN-01', label: '系统管理员' }
 }
 
+// 后端 role(数字) <-> 前端 Role(字符串) 映射
+const roleMap: Record<number, Role> = { 0: 'student', 1: 'itemAdmin', 2: 'systemAdmin' }
+const roleLabelMap: Record<Role, string> = {
+  student: '普通学生',
+  itemAdmin: '失物招领管理员',
+  systemAdmin: '系统管理员',
+}
+
 export const useAppStore = defineStore('app', () => {
   const role = ref<Role>((localStorage.getItem('role') as Role) || 'student')
   const activeRoute = ref('home')
@@ -81,7 +90,16 @@ export const useAppStore = defineStore('app', () => {
     { id: 3, itemId: 2, author: '周同学', avatar: '周', date: '昨天 18:42', content: '如果有看到蓝色帆布包，麻烦帮忙留意一下，谢谢！', likes: 2, liked: false }
   ])
 
-  const currentUser = computed(() => users[role.value])
+  // 登录用户(响应式): 登录时写入、退出时清空, 直接驱动 currentUser,
+  // 避免依赖 cookie 非响应式读取导致名字/身份登录后不刷新
+  const authUser = ref<UserResponse | null>(getStoredUser<UserResponse>())
+  const currentUser = computed(() => {
+    if (authUser.value) {
+      const r = roleMap[authUser.value.role] ?? 'student'
+      return { name: authUser.value.nickname || authUser.value.username, id: String(authUser.value.id), label: roleLabelMap[r] }
+    }
+    return users[role.value] // 未登录兜底
+  })
   const pendingCount = computed(() => items.value.filter((item) => item.status === '待审核').length + claims.value.filter((claim) => claim.status === '审核中').length)
 
   function setRole(nextRole: Role) {
@@ -91,14 +109,18 @@ export const useAppStore = defineStore('app', () => {
   function setActiveRoute(route: string) { activeRoute.value = route }
   async function login(account: string, password: string) {
     const { user, token } = await apiLogin({ username: account, password })  // 调真实接口
-    setAuth(token, user)          // token 写进 cookie（你导师要求的"写进 cookie"）
+    setAuth(token, user)          // token + 真实 user 写进 cookie(持久化)
+    authUser.value = user         // 响应式写入当前用户 → 名字/身份立即刷新
+    setRole(roleMap[user.role] ?? 'student')  // 用后端返回的 role 同步前端角色
     isAuthenticated.value = true  // 告诉全站"已登录"
   }
 
-  function logout() {
+  async function logout() {
+    try { await apiLogout() } catch { /* 后端失败也照退 */ }  // 通知后端失效 token
     clearAuth()                   // 清空 cookie（导师要求的"退出清空"）
+    authUser.value = null         // 清空当前用户 → 名字/身份立即回到未登录态
     isAuthenticated.value = false
-    localStorage.removeItem('role')
+    setRole('student')            // 重置角色, 避免残留管理员身份
   }
 
   function publish(item: Omit<Item, 'id' | 'author' | 'date' | 'status'> & { status?: ItemStatus }) {

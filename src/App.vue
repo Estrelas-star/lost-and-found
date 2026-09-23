@@ -180,9 +180,9 @@ function toggleSave() {
   flash(saved ? '已取消收藏' : '已收藏这条信息')
 }
 
-function handleLogout() {
+async function handleLogout() {
   profileMenuOpen.value = false
-  store.logout()
+  await store.logout()            // 先等退出完成(清 token/用户/角色), 再跳登录页, 避免要点两下
   router.replace({ name: 'login' })
 }
 
