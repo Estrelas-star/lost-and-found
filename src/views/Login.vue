@@ -6,20 +6,24 @@ import { useAppStore, type Role } from '../stores/app'
 const router = useRouter()
 const route = useRoute()
 const store = useAppStore()
-const account = ref('2023010218')
-const password = ref('123456')
+const account = ref('')
+const password = ref('')
 const selectedRole = ref<Role>('student')
 const errorMessage = ref('')
 
-function submitLogin() {
+async function submitLogin() {
+  errorMessage.value = ''
   if (!account.value || !password.value) {
     errorMessage.value = '请输入账号和密码'
     return
   }
-
-  store.login(selectedRole.value)
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/app'
-  router.push(redirect)
+  try {
+    await store.login(account.value, password.value)   // 真登录：传真实账号密码
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/app'
+    router.push(redirect)
+  } catch (e) {
+    errorMessage.value = (e as Error).message || '登录失败，请检查账号或密码'
+  }
 }
 </script>
 
@@ -36,13 +40,13 @@ function submitLogin() {
         <h2>登录拾光</h2>
         <p class="login-description">使用校园账号进入你的工作台</p>
         <form @submit.prevent="submitLogin">
-          <label>校园账号<input v-model="account" placeholder="学号 / 工号" autocomplete="username" /></label>
+          <label>校园账号<input v-model="account" placeholder="用户名" autocomplete="username" /></label>
           <label>密码<input v-model="password" type="password" placeholder="请输入密码" autocomplete="current-password" /></label>
           <label>登录身份<select v-model="selectedRole"><option value="student">普通学生</option><option value="itemAdmin">失物招领管理员</option><option value="systemAdmin">系统管理员</option></select></label>
           <p v-if="errorMessage" class="login-error">{{ errorMessage }}</p>
           <button class="primary-btn login-btn" type="submit">进入工作台 →</button>
         </form>
-        <small class="mock-hint">演示账号可直接使用任意非空账号和密码</small>
+        <small class="mock-hint">已接入真实后端，请使用注册过的账号登录</small>
       </div>
     </section>
   </main>
