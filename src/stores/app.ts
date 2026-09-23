@@ -1,4 +1,7 @@
 import { computed, ref } from 'vue'
+import { login as apiLogin } from '../api/user'
+import { setAuth, clearAuth, getToken } from '../utils/auth'
+
 import { defineStore } from 'pinia'
 
 export type Role = 'student' | 'itemAdmin' | 'systemAdmin'
@@ -57,7 +60,7 @@ const users: Record<Role, User> = {
 export const useAppStore = defineStore('app', () => {
   const role = ref<Role>((localStorage.getItem('role') as Role) || 'student')
   const activeRoute = ref('home')
-  const isAuthenticated = ref(localStorage.getItem('auth_token') === 'mock-token')
+  const isAuthenticated = ref(!!getToken())
   const notices = ref<any[]>([
     { id: 1, title: '期末周拾光服务时间调整通知', date: '2026-06-12', tag: '重要' },
     { id: 2, title: '毕业季物品集中认领活动开始啦', date: '2026-06-08', tag: '活动' }
@@ -86,16 +89,18 @@ export const useAppStore = defineStore('app', () => {
     localStorage.setItem('role', nextRole)
   }
   function setActiveRoute(route: string) { activeRoute.value = route }
-  function login(nextRole: Role) {
-    setRole(nextRole)
-    isAuthenticated.value = true
-    localStorage.setItem('auth_token', 'mock-token')
+  async function login(account: string, password: string) {
+    const { user, token } = await apiLogin({ username: account, password })  // 调真实接口
+    setAuth(token, user)          // token 写进 cookie（你导师要求的"写进 cookie"）
+    isAuthenticated.value = true  // 告诉全站"已登录"
   }
+
   function logout() {
+    clearAuth()                   // 清空 cookie（导师要求的"退出清空"）
     isAuthenticated.value = false
-    localStorage.removeItem('auth_token')
     localStorage.removeItem('role')
   }
+
   function publish(item: Omit<Item, 'id' | 'author' | 'date' | 'status'> & { status?: ItemStatus }) {
     items.value.unshift({ id: Date.now(), ...item, status: role.value === 'student' ? '待审核' : item.status || '待审核', author: currentUser.value.name, date: '刚刚' })
   }
