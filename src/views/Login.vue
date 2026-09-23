@@ -46,7 +46,6 @@ async function submitLogin() {
           <p v-if="errorMessage" class="login-error">{{ errorMessage }}</p>
           <button class="primary-btn login-btn" type="submit">进入工作台 →</button>
         </form>
-        <small class="mock-hint">已接入真实后端，请使用注册过的账号登录</small>
       </div>
     </section>
   </main>
