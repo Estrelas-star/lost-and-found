@@ -18,26 +18,24 @@ const rules: FormRules = {
   title: [{ required: true, min: 2, message: '请输入至少 2 个字符的物品名称', trigger: 'blur' }],
   contact: [{ required: true, min: 5, message: '请输入有效联系方式', trigger: 'blur' }]
 }
-const locationSelections = ref({ campus: '', building: '', area: '' })
+const locationSelections = ref({ campus: '', building: '', detail: '' })
 const buildingOptions = computed(() => Object.keys(locationTree[locationSelections.value.campus as keyof typeof locationTree] ?? {}))
-const areaOptions = computed(() => {
-  const campus = locationSelections.value.campus as keyof typeof locationTree
-  const building = locationSelections.value.building as keyof typeof locationTree[typeof campus]
-  return campus && building ? locationTree[campus][building] ?? [] : []
-})
+
+function updateLocation() {
+  const parts = [locationSelections.value.campus, locationSelections.value.building, locationSelections.value.detail].filter(Boolean)
+  form.value.location = parts.join(' · ')
+}
 
 watch(() => locationSelections.value.campus, () => {
   locationSelections.value.building = ''
-  locationSelections.value.area = ''
-  form.value.location = locationSelections.value.campus
+  locationSelections.value.detail = ''
+  updateLocation()
 })
 watch(() => locationSelections.value.building, () => {
-  locationSelections.value.area = ''
-  form.value.location = locationSelections.value.building ? `${locationSelections.value.campus} · ${locationSelections.value.building}` : locationSelections.value.campus
+  locationSelections.value.detail = ''
+  updateLocation()
 })
-watch(() => locationSelections.value.area, () => {
-  if (locationSelections.value.area) form.value.location = `${locationSelections.value.campus} · ${locationSelections.value.building} · ${locationSelections.value.area}`
-})
+watch(() => locationSelections.value.detail, updateLocation)
 
 function handleUpload(event: Event) {
   const input = event.target as HTMLInputElement
@@ -59,6 +57,7 @@ function validateForm() {
   if (form.value.title.trim().length < 2) nextErrors.title = '请输入至少 2 个字符的物品名称'
   if (!form.value.tags.length) nextErrors.tags = '请至少选择一个物品标签'
   if (!form.value.location) nextErrors.location = '请选择丢失或拾取地点'
+  if (!locationSelections.value.detail) nextErrors.detail = '请输入详细地址'
   if (form.value.contact.trim().length < 5) nextErrors.contact = '请输入有效联系方式'
   if (form.value.desc.trim().length < 10) nextErrors.desc = '详细描述至少需要 10 个字符'
   errors.value = nextErrors
@@ -67,7 +66,7 @@ function validateForm() {
 
 function resetForm() {
   form.value = { type: 'lost', title: '', tags: [], location: '', contact: '', desc: '', images: [] }
-  locationSelections.value = { campus: '', building: '', area: '' }
+  locationSelections.value = { campus: '', building: '', detail: '' }
   errors.value = {}
 }
 
@@ -126,11 +125,11 @@ function submitPost() {
 
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="丢失 / 拾取地点" :error="errors.location">
+          <el-form-item label="丢失 / 拾取地点" :error="errors.location || errors.detail">
             <div class="location-selector">
               <el-select v-model="locationSelections.campus" placeholder="请选择校区"><el-option v-for="campus in Object.keys(locationTree)" :key="campus" :label="campus" :value="campus" /></el-select>
-              <el-select v-model="locationSelections.building" placeholder="请选择地点" :disabled="!locationSelections.campus"><el-option v-for="building in buildingOptions" :key="building" :label="building" :value="building" /></el-select>
-              <el-select v-model="locationSelections.area" placeholder="请选择具体位置" :disabled="!locationSelections.building"><el-option v-for="area in areaOptions" :key="area" :label="area" :value="area" /></el-select>
+              <el-select v-model="locationSelections.building" placeholder="请选择建筑" :disabled="!locationSelections.campus"><el-option v-for="building in buildingOptions" :key="building" :label="building" :value="building" /></el-select>
+              <el-input v-model="locationSelections.detail" placeholder="请输入详细地址" :disabled="!locationSelections.building" :class="{ 'has-error': !!errors.detail }" />
             </div>
           </el-form-item>
         </el-col>
@@ -156,5 +155,5 @@ function submitPost() {
 </template>
 
 <style scoped>
-.publish-page{max-width:920px;margin:0 auto}.publish-intro{margin-bottom:24px}.publish-intro h1{margin:12px 0 8px;font-size:32px}.publish-intro p{margin:0;color:var(--muted)}.publish-form{padding:26px;background:#fff;border:1px solid var(--line);border-radius:14px}.publish-control,.publish-form .el-input,.publish-form .el-textarea,.publish-form .el-radio-group{width:100%}.publish-type{display:flex}.publish-type .el-radio-button{flex:1}.publish-type :deep(.el-radio-button__inner){width:100%}.location-selector{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}.upload-box{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:90px;border:1px dashed #c8d7cd;border-radius:10px;background:#fbfdfb;color:var(--green);cursor:pointer}.upload-box:hover{background:#f0f8f3}.upload-box input{display:none}.upload-box small{color:var(--muted);font-weight:400}.preview-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}.preview-item{position:relative;width:120px;height:120px;overflow:hidden;border-radius:10px}.preview-image{width:120px;height:120px}.remove-image{position:absolute;top:6px;right:6px;width:23px;height:23px;border:0;border-radius:50%;background:#19332fcc;color:#fff;font-size:16px;cursor:pointer}.publish-submit{width:100%;margin-top:8px}@media(max-width:700px){.publish-page{width:100%}.publish-form{padding:18px}.publish-form :deep(.el-col){max-width:100%;flex:0 0 100%}.location-selector{grid-template-columns:1fr}}
+.publish-page{max-width:920px;margin:0 auto}.publish-intro{margin-bottom:24px}.publish-intro h1{margin:12px 0 8px;font-size:32px}.publish-intro p{margin:0;color:var(--muted)}.publish-form{padding:26px;background:#fff;border:1px solid var(--line);border-radius:14px}.publish-control,.publish-form .el-input,.publish-form .el-textarea,.publish-form .el-radio-group{width:100%}.publish-type{display:flex}.publish-type .el-radio-button{flex:1}.publish-type :deep(.el-radio-button__inner){width:100%}.location-selector{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}.location-selector .has-error :deep(.el-input__wrapper){box-shadow:0 0 0 1px var(--el-color-danger) inset}.upload-box{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:90px;border:1px dashed #c8d7cd;border-radius:10px;background:#fbfdfb;color:var(--green);cursor:pointer}.upload-box:hover{background:#f0f8f3}.upload-box input{display:none}.upload-box small{color:var(--muted);font-weight:400}.preview-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}.preview-item{position:relative;width:120px;height:120px;overflow:hidden;border-radius:10px}.preview-image{width:120px;height:120px}.remove-image{position:absolute;top:6px;right:6px;width:23px;height:23px;border:0;border-radius:50%;background:#19332fcc;color:#fff;font-size:16px;cursor:pointer}.publish-submit{width:100%;margin-top:8px}@media(max-width:700px){.publish-page{width:100%}.publish-form{padding:18px}.publish-form :deep(.el-col){max-width:100%;flex:0 0 100%}.location-selector{grid-template-columns:1fr}}
 </style>
