@@ -7,7 +7,7 @@ import { defineStore } from 'pinia'
 
 export type Role = 'student' | 'itemAdmin' | 'systemAdmin'
 export type ItemType = 'lost' | 'found'
-export type ItemStatus = '待审核' | '招领中' | '待认领' | '已认领' | '已驳回'
+export type ItemStatus = '待审核' | '招领中' | '待认领' | '已认领' | '已驳回' | '已关闭'
 
 export interface User {
   name: string
@@ -130,6 +130,16 @@ export const useAppStore = defineStore('app', () => {
   function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '招领中' }
   function reject(id: number, reason: string) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '已驳回' }
   function updateClaim(id: number, status: string) { const claim = claims.value.find((entry) => entry.id === id); if (claim) claim.status = status }
+  function updateItem(id: number, patch: Partial<Item>) {
+    const item = items.value.find((entry) => entry.id === id)
+    if (item) Object.assign(item, patch)
+  }
+  function toggleItemPublished(id: number) {
+    const item = items.value.find((entry) => entry.id === id)
+    if (!item) return
+    item.status = item.status === '已关闭' ? '招领中' : '已关闭'
+  }
+  function removeItem(id: number) { items.value = items.value.filter((entry) => entry.id !== id) }
   function toggleFavorite(id: number) {
     favoriteItemIds.value = favoriteItemIds.value.includes(id)
       ? favoriteItemIds.value.filter((itemId) => itemId !== id)
@@ -150,5 +160,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike }
+  return { role, activeRoute, isAuthenticated, notices, items, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
 })
