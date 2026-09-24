@@ -1,8 +1,8 @@
-<script setup lang="ts">
+<script setup lang="ts">  //页面总框架
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { useAppStore, type Item, type ItemType, type Role } from './stores/app'
+import { useAppStore, type Item, type ItemType, type Role, type User, ROLE_LABELS } from './stores/app'
 import { navItems } from './navigation'
 import MetricCard from './components/MetricCard.vue'
 import PublishForm from './components/PublishForm.vue'
@@ -293,6 +293,41 @@ function submitReject() {
   rejectDialogVisible.value = false
   flash('已驳回该信息')
 }
+
+/* ===== 账号管理 ===== */
+function roleLabel(role: unknown): string {
+  return ROLE_LABELS[role as Role] ?? '未知'
+}
+const roleChangeDialogVisible = ref(false)
+const roleChangingUser = ref<User | null>(null)
+const roleOptions: Role[] = ['student', 'itemAdmin', 'systemAdmin']
+const selectedNewRole = ref<Role>('student')
+
+function openRoleDialog(user: User) {
+  roleChangingUser.value = user
+  selectedNewRole.value = user.role
+  roleChangeDialogVisible.value = true
+}
+
+function submitRoleChange() {
+  if (!roleChangingUser.value) return
+  const result = store.changeUserRole(roleChangingUser.value.account, selectedNewRole.value)
+  if (result.ok) {
+    ElMessage.success(result.message)
+    roleChangeDialogVisible.value = false
+  } else {
+    ElMessage.error(result.message)
+  }
+}
+
+function toggleDisabled(user: User) {
+  const result = store.toggleUserDisabled(user.account)
+  if (result.ok) {
+    ElMessage.success(result.message)
+  } else {
+    ElMessage.error(result.message)
+  }
+}
 </script>
 
 <template>
@@ -388,11 +423,23 @@ function submitReject() {
 
         <section v-else-if="store.activeRoute === 'dashboard'" class="page-section"><div class="section-intro"><span class="eyebrow">OVERVIEW · JUNE 2026</span><h1>校园失物招领总览</h1><p>数据会说话，看看校园里正在发生什么。</p></div><div class="metrics"><MetricCard label="累计发布" :value="stats.total" trend="较上月 +18%" tone="mint"/><MetricCard label="成功归还" :value="stats.returned" trend="归还率持续提升" tone="yellow"/><MetricCard label="待处理" :value="stats.pending" trend="今日需关注" tone="coral"/><MetricCard label="总体归还率" :value="stats.rate" trend="较上月 +6.4%" tone="blue"/></div><div class="dashboard-grid"><div class="chart-panel"><div class="panel-head"><h2>近 30 日趋势</h2><span>发布量 / 归还量</span></div><div class="fake-chart"><div v-for="(height, index) in [38, 56, 48, 72, 62, 80, 68, 92, 76, 88, 72, 96]" :key="index" class="bar-group"><i :style="{ height: height + '%' }"></i><b :style="{ height: height * .62 + '%' }"></b></div></div><div class="chart-labels"><span>05.19</span><span>05.26</span><span>06.02</span><span>06.09</span><span>06.16</span></div></div><div class="ranking-panel"><div class="panel-head"><h2>高频地点</h2><span>发布数量</span></div><div v-for="(place, index) in [['图书馆', 42], ['南区食堂', 36], ['体育馆', 29], ['教学楼', 21]]" :key="place[0]" class="rank-row"><span>0{{ index + 1 }}</span><strong>{{ place[0] }}</strong><i><b :style="{ width: place[1] * 2 + '%' }"></b></i><em>{{ place[1] }}</em></div></div></div></section>
 
-        <section v-else-if="store.activeRoute === 'users' || store.activeRoute === 'notices'" class="page-section"><div class="section-intro"><span class="eyebrow">SYSTEM SETTINGS</span><h1>{{ pageTitle }}</h1><p>{{ store.activeRoute === 'users' ? '管理校园账号、角色与访问权限。' : '让重要消息抵达每一位同学。' }}</p></div><div class="table-panel"><div v-for="row in (store.activeRoute === 'users' ? [{ name: '林知夏', id: '2023010218', role: '普通学生', state: '正常' }, { name: '赵老师', id: 'LF-ADMIN-01', role: '失物招领管理员', state: '正常' }, { name: '陈老师', id: 'SYS-ADMIN-01', role: '系统管理员', state: '正常' }] : store.notices)" :key="row.id || row.title" class="table-row"><div class="mini-visual mint">{{ store.activeRoute === 'users' ? row.name.slice(0, 1) : '✦' }}</div><div class="row-main"><strong>{{ row.name || row.title }}</strong><small>{{ row.id || row.date }} · {{ row.role || '公告内容管理' }}</small></div><span class="status-pill">{{ row.state || row.tag }}</span><button class="text-btn" @click="flash('编辑功能已打开')">编辑</button></div></div></section>
+        <section v-else-if="store.activeRoute === 'users'" class="page-section users-page"><div class="section-intro"><span class="eyebrow">SYSTEM SETTINGS</span><h1>{{ pageTitle }}</h1><p>管理校园账号、角色与访问权限。</p></div><div class="manage-table-wrap"><el-table :data="store.registeredUsers" style="width: 100%"><el-table-column label="账号" prop="account" min-width="120" /><el-table-column label="昵称" min-width="120"><template #default="{ row }"><strong>{{ row.name }}</strong></template></el-table-column><el-table-column label="角色" min-width="140"><template #default="{ row }"><el-tag :type="row.role === 'systemAdmin' ? 'danger' : row.role === 'itemAdmin' ? 'warning' : 'success'" effect="light">{{ roleLabel(row.role) }}</el-tag></template></el-table-column><el-table-column label="状态" min-width="100"><template #default="{ row }"><el-tag :type="row.disabled ? 'info' : 'success'" effect="plain">{{ row.disabled ? '已禁用' : '正常' }}</el-tag></template></el-table-column><el-table-column label="操作" min-width="200"><template #default="{ row }"><el-button type="primary" link :disabled="row.account === 'sysadmin'" @click="openRoleDialog(row)">修改角色</el-button><el-button :type="row.disabled ? 'success' : 'warning'" link :disabled="row.account === 'sysadmin'" @click="toggleDisabled(row)">{{ row.disabled ? '启用' : '禁用' }}</el-button></template></el-table-column></el-table></div></section>
+
+        <section v-else-if="store.activeRoute === 'notices'" class="page-section"><div class="section-intro"><span class="eyebrow">SYSTEM SETTINGS</span><h1>{{ pageTitle }}</h1><p>让重要消息抵达每一位同学。</p></div><div class="table-panel"><div v-for="row in store.notices" :key="row.id || row.title" class="table-row"><div class="mini-visual mint">✦</div><div class="row-main"><strong>{{ row.title }}</strong><small>{{ row.date }} · 公告内容管理</small></div><span class="status-pill">{{ row.tag }}</span><button class="text-btn" @click="flash('编辑功能已打开')">编辑</button></div></div></section>
       </div>
     </main>
     <DetailDialog :item="selectedItem" :visible="detailDialogVisible" @close="closeDetailDialog" />
     <div v-if="selectedItem" class="modal-backdrop" @click.self="selectedItem = null"><div class="detail-modal detail-modal-rich"><div class="detail-modal-actions"><button class="modal-action" @click="flash('举报信息已提交')">⚑ 举报</button><button class="modal-close" @click="selectedItem = null">×</button></div><div class="detail-gallery"><el-carousel v-if="detailImages.length" v-model="detailSlide" height="250px" arrow="always" indicator-position="outside"><el-carousel-item v-for="image in detailImages" :key="image"><img :src="image" alt="物品照片" /></el-carousel-item></el-carousel><div v-else class="detail-art" :class="selectedItem.color"><span>{{ selectedItem.icon }}</span><small>暂无照片</small></div></div><div class="detail-content"><span class="eyebrow">{{ selectedItem.type === 'lost' ? '寻物信息' : '招领信息' }} · {{ selectedItem.date }}</span><h2>{{ selectedItem.title }}</h2><div class="detail-tags"><el-tag v-for="tag in selectedItem.tags" :key="tag" effect="light">{{ tag }}</el-tag></div><p>{{ selectedItem.desc }}</p><div class="detail-lines"><span>⌖ {{ selectedItem.location }}</span><span>◷ {{ selectedItem.date }}</span><span>发布人：{{ selectedItem.author }}</span></div><div class="detail-stats"><span>◉ {{ detailViews }} 浏览</span><button type="button" :class="{ active: likedItems.includes(selectedItem.id) }" @click="toggleLike">♡ {{ detailLikes }} 点赞</button><button type="button" class="favorite-stat" :class="{ active: store.favoriteItemIds.includes(selectedItem.id) }" @click="toggleSave"><span>{{ store.favoriteItemIds.includes(selectedItem.id) ? '♥' : '♡' }}</span> {{ detailSaves }} 收藏</button></div><button v-if="store.role === 'student' && ['招领中', '待认领'].includes(selectedItem.status)" class="primary-btn full-btn" @click="claim(selectedItem)">申请认领</button><section class="comments-section"><div class="comments-heading"><h3>评论区</h3><span>{{ detailComments.length }} 条评论</span></div><div v-if="replyTarget" class="replying-to">正在回复 @{{ replyTarget.author }}<button type="button" @click="replyTarget = null">取消</button></div><div class="comment-composer"><el-input v-model="commentText" type="textarea" :rows="2" :placeholder="replyTarget ? `回复 @${replyTarget.author}` : '说说你的看法...'" maxlength="200" show-word-limit /><button type="button" class="send-comment" aria-label="发送评论" @click="sendComment">➤</button></div><div class="comment-list"><article v-for="comment in detailComments" :key="comment.id" class="comment-item" :class="{ 'comment-reply': comment.parentId }"><div class="comment-avatar">{{ comment.avatar }}</div><div class="comment-body"><div class="comment-meta"><strong>{{ comment.author }}</strong><time>{{ comment.date }}</time></div><p v-if="comment.replyTo" class="reply-label">回复 @{{ comment.replyTo }}</p><p class="comment-text">{{ comment.content }}</p><div class="comment-actions"><button type="button" @click="replyTarget = { id: comment.id, author: comment.author }">回复</button><button type="button" :class="{ active: comment.liked }" @click="store.toggleCommentLike(comment.id)">♡ {{ comment.likes }}</button></div></div></article><el-empty v-if="!detailComments.length" description="还没有评论，来留下第一条吧" :image-size="70" /></div></section></div></div></div>
     <div v-if="notice" class="toast">✓ {{ notice }}</div>
+    <el-dialog v-model="roleChangeDialogVisible" title="修改角色" width="420px" align-center>
+      <p class="dialog-user-info">为账号「{{ roleChangingUser?.name }}」设置新角色</p>
+      <el-select v-model="selectedNewRole" placeholder="请选择角色" style="width: 100%">
+        <el-option v-for="r in roleOptions" :key="r" :label="ROLE_LABELS[r]" :value="r" />
+      </el-select>
+      <template #footer>
+        <el-button @click="roleChangeDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitRoleChange">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>

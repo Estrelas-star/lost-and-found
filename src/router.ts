@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import App from './App.vue'
 import Login from './views/Login.vue'
+import Register from './views/Register.vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore, type Role } from './stores/app'
 import { navItems } from './navigation'
@@ -15,6 +16,7 @@ const roleHome: Record<Role, string> = {
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/app' },
   { path: '/login', name: 'login', component: Login, meta: { guestOnly: true } },
+  { path: '/register', name: 'register', component: Register, meta: { guestOnly: true, public: true } },
   { path: '/app', name: 'app', component: App, meta: { requiresAuth: true, roles: allRoles } },
   { path: '/app/home', name: 'home', component: App, meta: { requiresAuth: true, roles: ['student'], page: 'home' } },
   { path: '/app/publish', name: 'publish', component: App, meta: { requiresAuth: true, roles: ['student'], page: 'publish' } },

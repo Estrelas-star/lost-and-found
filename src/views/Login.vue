@@ -1,23 +1,28 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAppStore, type Role } from '../stores/app'
+import { useAppStore } from '../stores/app'
 
 const router = useRouter()
 const route = useRoute()
 const store = useAppStore()
-const account = ref('2023010218')
-const password = ref('123456')
-const selectedRole = ref<Role>('student')
+const account = ref('')
+const password = ref('')
 const errorMessage = ref('')
 
 function submitLogin() {
-  if (!account.value || !password.value) {
+  errorMessage.value = ''
+  if (!account.value.trim() || !password.value) {
     errorMessage.value = '请输入账号和密码'
     return
   }
 
-  store.login(selectedRole.value)
+  const result = store.login(account.value.trim(), password.value)
+  if (!result.ok) {
+    errorMessage.value = result.message
+    return
+  }
+
   const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/app'
   router.push(redirect)
 }
@@ -36,13 +41,12 @@ function submitLogin() {
         <h2>登录拾光</h2>
         <p class="login-description">使用校园账号进入你的工作台</p>
         <form @submit.prevent="submitLogin">
-          <label>校园账号<input v-model="account" placeholder="学号 / 工号" autocomplete="username" /></label>
+          <label>账号<input v-model="account" placeholder="请输入账号" autocomplete="username" /></label>
           <label>密码<input v-model="password" type="password" placeholder="请输入密码" autocomplete="current-password" /></label>
-          <label>登录身份<select v-model="selectedRole"><option value="student">普通学生</option><option value="itemAdmin">失物招领管理员</option><option value="systemAdmin">系统管理员</option></select></label>
           <p v-if="errorMessage" class="login-error">{{ errorMessage }}</p>
           <button class="primary-btn login-btn" type="submit">进入工作台 →</button>
         </form>
-        <small class="mock-hint">演示账号可直接使用任意非空账号和密码</small>
+        <button class="register-link" type="button" @click="router.push({ name: 'register' })">还没有账号？去注册</button>
       </div>
     </section>
   </main>

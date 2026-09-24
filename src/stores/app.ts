@@ -5,10 +5,27 @@ export type Role = 'student' | 'itemAdmin' | 'systemAdmin'
 export type ItemType = 'lost' | 'found'
 export type ItemStatus = '待审核' | '招领中' | '待认领' | '已认领' | '已驳回' | '已关闭'
 
+export const ROLE_LABELS: Record<Role, string> = {
+  student: '普通学生',
+  itemAdmin: '失物招领管理员',
+  systemAdmin: '系统管理员'
+}
+
 export interface User {
+  /** 登录账号 */
+  account: string
+  /** 登录密码 */
+  password: string
+  /** 昵称 / 姓名 */
   name: string
-  id: string
+  /** 显示标签（沿用既有 UI 的 label 字段） */
   label: string
+  /** 角色 */
+  role: Role
+  /** 是否被禁用（模拟封禁） */
+  disabled: boolean
+  /** 联系方式（注册时填写） */
+  contact?: string
 }
 
 export interface Item {
@@ -48,14 +65,37 @@ export interface Comment {
   replyTo?: string
 }
 
-const users: Record<Role, User> = {
-  student: { name: '林知夏', id: '2023010218', label: '普通学生' },
-  itemAdmin: { name: '赵老师', id: 'LF-ADMIN-01', label: '失物招领管理员' },
-  systemAdmin: { name: '陈老师', id: 'SYS-ADMIN-01', label: '系统管理员' }
+const SYS_ADMIN_ACCOUNT = 'sysadmin'
+
+function seedUsers(): User[] {
+  const stored = localStorage.getItem('registered_users')
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored) as User[]
+      if (Array.isArray(parsed) && parsed.length) {
+        // 确保内置系统管理员始终存在，且不可被注册/篡改
+        const hasSysAdmin = parsed.some((u) => u.account === SYS_ADMIN_ACCOUNT)
+        if (hasSysAdmin) return parsed
+        return [sysAdminUser(), ...parsed]
+      }
+    } catch {
+      // ignore corrupted storage
+    }
+  }
+  return [
+    sysAdminUser(),
+    { account: '2023010218', password: '123456', name: '林知夏', label: '普通学生', role: 'student', disabled: false, contact: '13800000001' },
+    { account: 'teacher01', password: '123456', name: '赵老师', label: '失物招领管理员', role: 'itemAdmin', disabled: false, contact: '13800000002' }
+  ]
+}
+
+function sysAdminUser(): User {
+  return { account: SYS_ADMIN_ACCOUNT, password: '123456', name: '系统管理员', label: '系统管理员', role: 'systemAdmin', disabled: false }
 }
 
 export const useAppStore = defineStore('app', () => {
   const role = ref<Role>((localStorage.getItem('role') as Role) || 'student')
+  const registeredUsers = ref<User[]>(seedUsers())
   const activeRoute = ref('home')
   const isAuthenticated = ref(localStorage.getItem('auth_token') === 'mock-token')
   const notices = ref<any[]>([
@@ -78,23 +118,82 @@ export const useAppStore = defineStore('app', () => {
     { id: 3, itemId: 2, author: '周同学', avatar: '周', date: '昨天 18:42', content: '如果有看到蓝色帆布包，麻烦帮忙留意一下，谢谢！', likes: 2, liked: false }
   ])
 
-  const currentUser = computed(() => users[role.value])
+  const currentUser = computed(() => registeredUsers.value.find((u) => u.account === account.value) ?? seedUsers()[0])
   const pendingCount = computed(() => items.value.filter((item) => item.status === '待审核').length + claims.value.filter((claim) => claim.status === '审核中').length)
+
+  function persistUsers() {
+    localStorage.setItem('registered_users', JSON.stringify(registeredUsers.value))
+  }
+
+  /** 当前登录的账号 */
+  const account = ref<string>((localStorage.getItem('account') as string) || '')
+
+  /** 校验账号密码，返回匹配用户；不匹配返回 null */
+  function authenticate(inputAccount: string, inputPassword: string): User | null {
+    const user = registeredUsers.value.find((u) => u.account === inputAccount && u.password === inputPassword)
+    return user || null
+  }
+
+  function registerUser(data: { account: string; password: string; name: string; contact: string }): { ok: boolean; message: string } {
+    const exists = registeredUsers.value.some((u) => u.account === data.account)
+    if (exists) return { ok: false, message: '该账号已被注册' }
+    if (data.account === SYS_ADMIN_ACCOUNT) return { ok: false, message: '该账号已被占用' }
+    registeredUsers.value.push({
+      account: data.account,
+      password: data.password,
+      name: data.name,
+      label: '普通学生',
+      role: 'student',
+      disabled: false,
+      contact: data.contact
+    })
+    persistUsers()
+    return { ok: true, message: '注册成功' }
+  }
+
+  /** 修改某用户角色；系统管理员不可被修改 */
+  function changeUserRole(inputAccount: string, nextRole: Role): { ok: boolean; message: string } {
+    if (inputAccount === SYS_ADMIN_ACCOUNT) return { ok: false, message: '系统管理员角色不可修改' }
+    const user = registeredUsers.value.find((u) => u.account === inputAccount)
+    if (!user) return { ok: false, message: '用户不存在' }
+    user.role = nextRole
+    user.label = ROLE_LABELS[nextRole]
+    persistUsers()
+    return { ok: true, message: '角色修改成功' }
+  }
+
+  /** 禁用 / 启用某用户；系统管理员不可被禁用 */
+  function toggleUserDisabled(inputAccount: string): { ok: boolean; message: string } {
+    if (inputAccount === SYS_ADMIN_ACCOUNT) return { ok: false, message: '系统管理员不可被禁用' }
+    const user = registeredUsers.value.find((u) => u.account === inputAccount)
+    if (!user) return { ok: false, message: '用户不存在' }
+    user.disabled = !user.disabled
+    persistUsers()
+    return { ok: true, message: user.disabled ? '账号已禁用' : '账号已启用' }
+  }
 
   function setRole(nextRole: Role) {
     role.value = nextRole
     localStorage.setItem('role', nextRole)
   }
   function setActiveRoute(route: string) { activeRoute.value = route }
-  function login(nextRole: Role) {
-    setRole(nextRole)
+  function login(inputAccount: string, inputPassword: string): { ok: boolean; message: string } {
+    const user = authenticate(inputAccount, inputPassword)
+    if (!user) return { ok: false, message: '账号或密码错误' }
+    if (user.disabled) return { ok: false, message: '该账号已被禁用' }
+    role.value = user.role
+    account.value = user.account
+    localStorage.setItem('role', user.role)
+    localStorage.setItem('account', user.account)
     isAuthenticated.value = true
     localStorage.setItem('auth_token', 'mock-token')
+    return { ok: true, message: '登录成功' }
   }
   function logout() {
     isAuthenticated.value = false
     localStorage.removeItem('auth_token')
     localStorage.removeItem('role')
+    localStorage.removeItem('account')
   }
   function publish(item: Omit<Item, 'id' | 'author' | 'date' | 'status'> & { status?: ItemStatus }) {
     items.value.unshift({ id: Date.now(), ...item, status: role.value === 'student' ? '待审核' : item.status || '待审核', author: currentUser.value.name, date: '刚刚' })
@@ -133,5 +232,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
+  return { role, account, registeredUsers, activeRoute, isAuthenticated, notices, items, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, authenticate, registerUser, changeUserRole, toggleUserDisabled, publish, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
 })
