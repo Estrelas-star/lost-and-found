@@ -49,25 +49,25 @@ export function batchGetUsers(ids: number[]) {
 
 /* 管理员专用接口 */
 
-/** 改变用户角色: POST /user/admin-change-role */
+/** 改变用户角色: POST /admin/change-role */
 export function adminChangeRole(body: ChangeUserRoleRequest) {
-  return request<UserResponse>('/user/admin-change-role', {
+  return request<UserResponse>('/admin/change-role', {
     method: 'POST',
     body: JSON.stringify(body),
   })
 }
 
-/** 改变用户状态*/
+/** 改变用户状态: POST /admin/change-status */
 export function adminChangeStatus(body: ChangeUserStatusRequest) {
-  return request<UserResponse>('/user/admin-change-status', {
+  return request<UserResponse>('/admin/change-status', {
     method: 'POST',
     body: JSON.stringify(body),
   })
 }
 
-/** 改变用户积分: */
+/** 改变用户积分: POST /admin/add-credit */
 export function adminAddCredit(body: AddUserCreditRequest) {
-  return request<UserResponse>('/user/admin-add-credit', {
+  return request<UserResponse>('/admin/add-credit', {
     method: 'POST',
     body: JSON.stringify(body),
   })
