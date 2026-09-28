@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { useAppStore, type ItemType } from '../stores/app'
+import { type ItemType } from '../stores/app'
 import LocationSelector from './LocationSelector.vue'
-
-const store = useAppStore()
+import { createItem } from '../api/item'
 const categoryOptions = ['数码', '证件', '日用', '服饰', '书籍', '其他']
 
 const form = ref({ type: 'lost' as ItemType, title: '', tags: [] as string[], location: '', contact: '', desc: '', images: [] as string[] })
@@ -126,7 +125,7 @@ function submitPost() {
         </el-col>
       </el-row>
 
-      <el-button type="primary" native-type="submit" class="publish-submit">提交审核</el-button>
+      <el-button type="primary" native-type="submit" class="publish-submit">发布</el-button>
     </el-form>
   </section>
 </template>
