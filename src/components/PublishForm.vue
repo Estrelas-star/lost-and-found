@@ -3,13 +3,14 @@ import { ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { type ItemType } from '../stores/app'
 import LocationSelector from './LocationSelector.vue'
-import { createItem } from '../api/item'
+import { createItem, setItemImages } from '../api/item'
 const categoryOptions = ['数码', '证件', '日用', '服饰', '书籍', '其他']
 
 const form = ref({ type: 'lost' as ItemType, title: '', tags: [] as string[], location: '', contact: '', desc: '', images: [] as string[] })
 const errors = ref<Record<string, string>>({})
 const formRef = ref<FormInstance>()
 const locationSelectorRef = ref<InstanceType<typeof LocationSelector>>()
+const selectedFiles = ref<File[]>([])
 const rules: FormRules = {
   title: [{ required: true, min: 2, message: '请输入至少 2 个字符的物品名称', trigger: 'blur' }],
   contact: [{ required: true, min: 5, message: '请输入有效联系方式', trigger: 'blur' }]
@@ -17,10 +18,12 @@ const rules: FormRules = {
 
 function handleUpload(event: Event) {
   const input = event.target as HTMLInputElement
-  const files = Array.from(input.files || []).filter((file) => file.type.startsWith('image/'))
+  const picked = Array.from(input.files || []).filter((file) => file.type.startsWith('image/'))
   const remaining = 3 - form.value.images.length
-  if (files.length > remaining) ElMessage.error('最多只能上传3张图片')
-  form.value.images = [...form.value.images, ...files.slice(0, remaining).map((file) => URL.createObjectURL(file))]
+  if (picked.length > remaining) ElMessage.error('最多只能上传3张图片')
+  const accepted = picked.slice(0, remaining)
+  selectedFiles.value.push(...accepted)
+  form.value.images = [...form.value.images, ...accepted.map((file) => URL.createObjectURL(file))]
   input.value = ''
 }
 
@@ -28,6 +31,7 @@ function removeImage(index: number) {
   const url = form.value.images[index]
   if (url) URL.revokeObjectURL(url)
   form.value.images.splice(index, 1)
+  selectedFiles.value.splice(index, 1)
 }
 
 function validateForm() {
@@ -46,19 +50,45 @@ function validateForm() {
 
 function resetForm() {
   form.value = { type: 'lost', title: '', tags: [], location: '', contact: '', desc: '', images: [] }
+  selectedFiles.value = []
   locationSelectorRef.value?.reset()
   errors.value = {}
 }
 
-function submitPost() {
-  formRef.value?.validate((valid) => {
+async function submitPost() {
+  formRef.value?.validate(async (valid) => {
     if (!valid || !validateForm()) {
       ElMessage.error('请先完善表单信息')
       return
     }
-    store.publish({ ...form.value, icon: form.value.type === 'lost' ? '◌' : '◉', color: 'blue', status: '待审核' })
-    resetForm()
-    ElMessage.success('信息已提交，等待管理员审核')
+    try {
+      const res = await createItem({
+        title: form.value.title,
+        description: form.value.desc,
+        type: form.value.type === 'lost' ? 0 : 1,
+        lost_found_time: new Date().toISOString(),
+        contact: form.value.contact,
+        location_detail: form.value.location,
+      })
+      // 选了图片则上传（前端转 base64 作为 image_url 传给后端 images 接口）
+      if (selectedFiles.value.length) {
+        const urls = await Promise.all(selectedFiles.value.map(fileToDataUrl))
+        await setItemImages(res.data.id, urls.map((u, i) => ({ image_url: u, sort_order: i + 1 })))
+      }
+      resetForm()
+      ElMessage.success('发布成功，所有人可在首页看到')
+    } catch (e) {
+      ElMessage.error((e as Error).message || '发布失败，请重试')
+    }
+  })
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
   })
 }
 </script>

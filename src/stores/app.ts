@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import { login as apiLogin, logout as apiLogout } from '../api/user'
+import { listItems } from '../api/item'
 import { setAuth, clearAuth, getToken, getStoredUser } from '../utils/auth'
 import type { UserResponse } from '../api/types'
 
@@ -126,6 +127,32 @@ export const useAppStore = defineStore('app', () => {
   function publish(item: Omit<Item, 'id' | 'author' | 'date' | 'status'> & { status?: ItemStatus }) {
     items.value.unshift({ id: Date.now(), ...item, status: role.value === 'student' ? '待审核' : item.status || '待审核', author: currentUser.value.name, date: '刚刚' })
   }
+
+  // —— 真实后端数据（与本地 mock 并存，不替换）——
+  const remoteItems = ref<Item[]>([])
+  async function fetchItems() {
+    try {
+      const res = await listItems()
+      const meId = authUser.value?.id
+      const meName = currentUser.value.name
+      remoteItems.value = (res.data?.items ?? []).map((it) => ({
+        id: it.id,
+        type: (it.type === 0 ? 'lost' : 'found') as ItemType,
+        title: it.title,
+        tags: [],
+        location: it.location_detail || '',
+        date: (it.created_at || '').slice(0, 10),
+        status: it.status === 0 ? '招领中' : it.status === 1 ? '已认领' : '已关闭',
+        author: meId != null && it.user_id === meId ? meName : `用户${it.user_id}`,
+        color: 'blue',
+        icon: it.type === 0 ? '◌' : '◉',
+        desc: it.description,
+        contact: it.contact,
+      }))
+    } catch {
+      // 拉取失败不影响本地 mock 展示
+    }
+  }
   function submitClaim(item: Item) { claims.value.unshift({ id: Date.now(), item: item.title, applicant: currentUser.value.name, date: '刚刚', status: '审核中' }) }
   function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '招领中' }
   function reject(id: number, reason: string) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '已驳回' }
@@ -160,5 +187,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
 })

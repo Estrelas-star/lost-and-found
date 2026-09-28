@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { useAppStore, type Item, type ItemType, type Role } from './stores/app'
 import { navItems } from './navigation'
 import MetricCard from './components/MetricCard.vue'
@@ -26,33 +25,14 @@ const detailSlide = ref(0)
 const likedItems = ref<number[]>([])
 const notice = ref('')
 const profileMenuOpen = ref(false)
-const form = ref({ type: 'lost' as ItemType, title: '', category: '', tags: [] as string[], location: '', contact: '', desc: '', images: [] as string[] })
-const errors = ref<Record<string, string>>({})
-const locationTree = {
-  南区: {
-    食堂: ['一楼', '二楼', '门口'],
-    图书馆: ['一楼', '二楼', '三楼'],
-    教学楼: ['A座', 'B座', 'C座']
-  },
-  北区: {
-    宿舍楼: ['1号楼', '2号楼', '3号楼'],
-    体育馆: ['入口', '篮球场', '操场'],
-    研究院: ['主楼', '实验楼', '停车场']
-  },
-  东区: {
-    校门: ['东门', '南门', '北门'],
-    行政楼: ['一楼', '二楼', '三楼'],
-    绿地: ['小广场', '操场', '景观区']
-  }
-} as const
-const locationSelections = ref({ campus: '', building: '', area: '' })
 const roleLabels = { student: '学生端', itemAdmin: '失物招领管理', systemAdmin: '系统管理' }
 const pageTitle = computed(() => ({ home: '发现物品', publish: '发布信息', posts: '我的发布', claims: '我的认领', audit: '审核中心', manage: '物品管理', dashboard: '数据总览', users: '账号管理', notices: '公告管理' })[store.activeRoute])
 const visibleNavItems = computed(() => navItems[store.role].filter((item) => (item.roles as readonly Role[]).includes(store.role)))
 const categoryOptions = ['数码', '证件', '日用', '服饰', '书籍', '其他'] as const
 const locationOptions = computed(() => ['全部', ...Array.from(new Set(store.items.map((item) => item.location.split('·')[0]?.trim()).filter(Boolean)))])
 const timeOptions = ['全部', '近3天', '近7天', '近30天']
-const filteredItems = computed(() => store.items.filter((item) => {
+const allItems = computed(() => [...store.items, ...store.remoteItems])
+const filteredItems = computed(() => allItems.value.filter((item) => {
   const matchesType = filter.value === '全部' || item.type === filter.value
   const matchesCategory = categoryFilter.value === '全部' || item.tags.includes(categoryFilter.value)
   const matchesLocation = locationFilter.value === '全部' || item.location.includes(locationFilter.value)
@@ -86,7 +66,7 @@ const detailSaves = computed(() => selectedItem.value ? 8 + selectedItem.value.i
 const commentText = ref('')
 const replyTarget = ref<{ id: number, author: string } | null>(null)
 const detailComments = computed(() => selectedItem.value ? store.comments.filter((comment) => comment.itemId === selectedItem.value?.id) : [])
-const myItems = computed(() => store.items.filter((item) => item.author === store.currentUser.name))
+const myItems = computed(() => allItems.value.filter((item) => item.author === store.currentUser.name))
 const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
 const auditStatusFilter = ref<'全部' | '待审核'>('全部')
 const auditTypeFilter = ref<'全部' | ItemType>('全部')
@@ -104,8 +84,6 @@ const auditItems = computed(() => pendingItems.value.filter((item) => {
 }))
 const paginatedAuditItems = computed(() => auditItems.value.slice((auditPage.value - 1) * auditPageSize.value, auditPage.value * auditPageSize.value))
 const stats = computed(() => ({ total: store.items.length + 26, returned: store.items.filter((item) => item.status === '已认领').length + 18, pending: pendingItems.value.length + 8, rate: '68%' }))
-const buildingOptions = computed(() => Object.keys(locationTree[locationSelections.value.campus as keyof typeof locationTree] ?? {}))
-const areaOptions = computed(() => (locationSelections.value.campus && locationSelections.value.building ? locationTree[locationSelections.value.campus as keyof typeof locationTree][locationSelections.value.building as keyof typeof locationTree[keyof typeof locationTree]] ?? [] : []))
 
 watch([filter, categoryFilter, locationFilter, timeFilter, search], () => {
   currentPage.value = 1
@@ -117,29 +95,11 @@ const roleHome = { student: 'home', itemAdmin: 'audit', systemAdmin: 'dashboard'
 watch(() => route.meta.page, (page) => {
   store.setActiveRoute(typeof page === 'string' ? page : roleHome[store.role])
 }, { immediate: true })
-watch(() => locationSelections.value.campus, () => {
-  locationSelections.value.building = ''
-  locationSelections.value.area = ''
-  if (locationSelections.value.campus) {
-    form.value.location = locationSelections.value.campus
-  } else {
-    form.value.location = ''
-  }
-})
-watch(() => locationSelections.value.building, () => {
-  locationSelections.value.area = ''
-  if (!locationSelections.value.campus) return
-  if (locationSelections.value.building) {
-    form.value.location = `${locationSelections.value.campus} · ${locationSelections.value.building}`
-  } else {
-    form.value.location = locationSelections.value.campus
-  }
-})
-watch(() => locationSelections.value.area, () => {
-  if (locationSelections.value.campus && locationSelections.value.building && locationSelections.value.area) {
-    form.value.location = `${locationSelections.value.campus} · ${locationSelections.value.building} · ${locationSelections.value.area}`
-  }
-})
+
+// 进入首页 / 我的发布时，从后端拉取真实帖子（与本地 mock 合并展示）
+watch(() => store.activeRoute, (r) => {
+  if (r === 'home' || r === 'posts') store.fetchItems()
+}, { immediate: true })
 
 function go(key: string) {
   selectedItem.value = null
@@ -189,85 +149,6 @@ async function handleLogout() {
 
 function flash(text: string) { notice.value = text; setTimeout(() => { notice.value = '' }, 2200) }
 
-function handleUpload(event: Event) {
-  const input = event.target as HTMLInputElement
-  const files = Array.from(input.files || [])
-
-  if (!files.length) return
-
-  const validFiles = files.filter((file) => file.type.startsWith('image/'))
-  const remainingSlots = 3 - form.value.images.length
-  const nextUrls = validFiles.slice(0, remainingSlots).map((file) => URL.createObjectURL(file))
-
-  form.value.images = [...form.value.images, ...nextUrls].slice(0, 3)
-  if (validFiles.length > remainingSlots) {
-    errors.value.images = '最多只能上传 3 张图片'
-    ElMessage.error('最多只能上传3张图片')
-  }
-
-  input.value = ''
-}
-
-function removeImage(index: number) {
-  const url = form.value.images[index]
-  if (url) URL.revokeObjectURL(url)
-  form.value.images.splice(index, 1)
-  if (errors.value.images) delete errors.value.images
-}
-
-function validateForm() {
-  const nextErrors: Record<string, string> = {}
-
-  if (!form.value.title.trim()) nextErrors.title = '请输入物品名称'
-  else if (form.value.title.trim().length < 2) nextErrors.title = '物品名称至少 2 个字符'
-
-  if (!form.value.tags.length) nextErrors.tags = '请至少选择一个物品标签'
-
-  if (!form.value.location.trim()) nextErrors.location = '请选择丢失或拾取地点'
-
-  if (!form.value.contact.trim()) nextErrors.contact = '请输入联系方式'
-  else if (form.value.contact.trim().length < 5) nextErrors.contact = '联系方式至少 5 个字符'
-
-  if (!form.value.desc.trim()) nextErrors.desc = '请输入详细描述'
-  else if (form.value.desc.trim().length < 10) nextErrors.desc = '描述至少 10 个字符，便于核验信息真实性'
-
-  if (form.value.images.length > 3) nextErrors.images = '最多只能上传 3 张图片'
-
-  errors.value = nextErrors
-  return Object.keys(nextErrors).length === 0
-}
-
-function resetPublishForm() {
-  form.value = {
-    type: 'lost' as ItemType,
-    title: '',
-    category: '',
-    tags: [],
-    location: '',
-    contact: '',
-    desc: '',
-    images: []
-  }
-  locationSelections.value = { campus: '', building: '', area: '' }
-  errors.value = {}
-}
-
-function submitPost() {
-  if (!validateForm()) {
-    flash('请修正表单中的错误后再提交')
-    return
-  }
-
-  store.publish({
-    ...form.value,
-    icon: form.value.type === 'lost' ? '◌' : '◉',
-    color: 'blue',
-    status: '待审核'
-  })
-
-  resetPublishForm()
-  flash('信息已提交，等待管理员审核')
-}
 
 function claim(item: Item) {
   if (item.status !== '招领中' && item.status !== '待认领') {
