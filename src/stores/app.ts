@@ -92,7 +92,7 @@ export const useAppStore = defineStore('app', () => {
   ])
 
   // 登录用户(响应式): 登录时写入、退出时清空, 直接驱动 currentUser,
-  // 避免依赖 cookie 非响应式读取导致名字/身份登录后不刷新
+  // 避免直接读存储导致名字/身份登录后不刷新
   const authUser = ref<UserResponse | null>(getStoredUser<UserResponse>())
   const currentUser = computed(() => {
     if (authUser.value) {
@@ -110,7 +110,7 @@ export const useAppStore = defineStore('app', () => {
   function setActiveRoute(route: string) { activeRoute.value = route }
   async function login(account: string, password: string) {
     const { user, token } = await apiLogin({ username: account, password })  // 调真实接口
-    setAuth(token, user)          // token + 真实 user 写进 cookie(持久化)
+    setAuth(token, user)          // token + 真实 user 写进 localStorage(持久化)
     authUser.value = user         // 响应式写入当前用户 → 名字/身份立即刷新
     setRole(roleMap[user.role] ?? 'student')  // 用后端返回的 role 同步前端角色
     isAuthenticated.value = true  // 告诉全站"已登录"
@@ -118,7 +118,7 @@ export const useAppStore = defineStore('app', () => {
 
   async function logout() {
     try { await apiLogout() } catch { /* 后端失败也照退 */ }  // 通知后端失效 token
-    clearAuth()                   // 清空 cookie（导师要求的"退出清空"）
+    clearAuth()                   // 清空 localStorage 登录态（退出清空）
     authUser.value = null         // 清空当前用户 → 名字/身份立即回到未登录态
     isAuthenticated.value = false
     setRole('student')            // 重置角色, 避免残留管理员身份

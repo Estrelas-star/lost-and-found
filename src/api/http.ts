@@ -1,4 +1,4 @@
-import { getToken } from '../utils/auth'
+import { getToken, updateToken } from '../utils/auth'
 import type { ApiResponse } from './types'
 
 // 走 Vite 代理(见 vite.config.ts), /api 会被转发到后端, 避免浏览器跨域报错
@@ -13,7 +13,7 @@ async function parseJsonSafe<T>(res: Response): Promise<ApiResponse<T>> {
   }
 }
 
-/** 通用请求: 成功返回 data, 失败抛错 */
+/** 通用请求: 成功返回 data, 失败抛错。若响应头带回新 token（后端6h续期）则自动更新存储 */
 export async function request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const headers = new Headers(options.headers)
   if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
@@ -22,6 +22,9 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
   const json = await parseJsonSafe<T>(res)
+  // 后端续期：在响应头返回新 token，前端静默更新，避免6h后旧 token 被拉黑导致掉线
+  const newToken = res.headers.get('Authorization')
+  if (newToken) updateToken(newToken)
   if (json.code !== 0) throw new Error(json.message || '请求失败')
   return json
 }
