@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { login as apiLogin, logout as apiLogout } from '../api/user'
-import { listItems } from '../api/item'
+import { listItems, getItem, listReports, reviewReport as reviewReportApi, type ReportDTO, type ListReportsParams } from '../api/item'
 import { setAuth, clearAuth, getToken, getStoredUser } from '../utils/auth'
 import type { UserResponse } from '../api/types'
 
@@ -153,6 +153,45 @@ export const useAppStore = defineStore('app', () => {
       // 拉取失败不影响本地 mock 展示
     }
   }
+
+  // —— 举报审核（审核员）：真接口 + mock 兜底 ——
+  const reports = ref<ReportDTO[]>([
+    { id: 101, reporter_id: 5, target_type: 0, target_id: 2, reason: 1, description: '该帖子含不当内容，请核实。', status: 0, created_at: '2026-06-16 10:12', item: { id: 2, title: '蓝色帆布包', type: 1, status: 0, description: '包内有一本《设计心理学》和校园卡。' } },
+    { id: 102, reporter_id: 8, target_type: 0, target_id: 4, reason: 0, description: '疑似虚假招领信息。', status: 0, created_at: '2026-06-16 11:03', item: { id: 4, title: '银色保温杯', type: 1, status: 0, description: '杯身有一枚小树贴纸，落款为 W。' } },
+    { id: 103, reporter_id: 3, target_type: 0, target_id: 1, reason: 2, description: '重复刷屏。', status: 1, created_at: '2026-06-15 09:40', item: { id: 1, title: '黑色 AirPods Pro 2', type: 1, status: 1, description: '在靠窗自习区拾到，已交至图书馆服务台。' } },
+  ])
+  async function fetchReports(params: ListReportsParams = { target_type: 0 }) {
+    try {
+      const res = await listReports(params)
+      const list = (res.data?.items ?? []).map((r) => ({ ...r }))
+      await Promise.all(list.map(async (r) => {
+        if (r.target_type === 0 && !r.item) {
+          try { const it = await getItem(r.target_id); r.item = it.data } catch { /* 忽略 */ }
+        }
+      }))
+      reports.value = list
+    } catch {
+      // 后端 /admin/reports 未就绪：保留上面 mock，界面照常演示
+    }
+  }
+  async function reviewReport(id: number, payload: { status: 1 | 2 | 3; audit_comment?: string }) {
+    try {
+      const res = await reviewReportApi(id, payload)
+      const updated = res.data
+      const idx = reports.value.findIndex((r) => r.id === id)
+      if (idx >= 0 && updated) reports.value[idx] = updated
+      return updated
+    } catch {
+      // 后端未就绪：本地直接改状态演示
+      const r = reports.value.find((x) => x.id === id)
+      if (r) {
+        r.status = payload.status
+        r.audit_comment = payload.audit_comment
+        r.auditor_id = Number(authUser.value?.id ?? 0)
+        r.audited_at = new Date().toISOString()
+      }
+    }
+  }
   function submitClaim(item: Item) { claims.value.unshift({ id: Date.now(), item: item.title, applicant: currentUser.value.name, date: '刚刚', status: '审核中' }) }
   function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '招领中' }
   function reject(id: number, reason: string) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '已驳回' }
@@ -187,5 +226,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, reports, fetchReports, reviewReport, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
 })

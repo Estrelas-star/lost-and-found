@@ -77,3 +77,63 @@ export function setItemImages(itemID: number, images: { image_url: string; sort_
     body: JSON.stringify({ images }),
   })
 }
+
+// —— 举报审核（审核员专用，后端 /admin/reports，待洪烨实现）——
+export type ReportStatus = 0 | 1 | 2 | 3   // 0待审核 1已通过 2已拒绝 3已处理
+export type ReportTargetType = 0 | 1 | 2   // 0物品 1评论 2用户
+export type ReportReason = 0 | 1 | 2 | 3   // 0虚假信息 1违规内容 2恶意行为 3其他
+
+export interface ReportDTO {
+  id: number
+  reporter_id: number
+  target_type: ReportTargetType
+  target_id: number
+  reason: ReportReason
+  description?: string
+  status: ReportStatus
+  auditor_id?: number
+  audit_comment?: string
+  audited_at?: string
+  created_at: string
+  updated_at?: string
+  // 前端补充：被举报物品摘要（target_type=0 时由 /item/:id 拉取或 mock 自带）
+  item?: { id: number; title: string; type: number; status: number; description?: string; images?: { image_url: string; sort_order: number }[] }
+}
+
+export interface ListReportsParams {
+  status?: ReportStatus
+  target_type?: ReportTargetType
+  target_id?: number
+  page?: number
+  page_size?: number
+}
+
+export interface ReportListResult {
+  items: ReportDTO[]
+  page: number
+  page_size: number
+  total: number
+}
+
+/** 列出举报（审核员）：GET /admin/reports */
+export function listReports(params: ListReportsParams = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) qs.append(k, String(v))
+  })
+  const query = qs.toString()
+  return request<ReportListResult>(`/admin/reports${query ? '?' + query : ''}`)
+}
+
+/** 审核单条举报：POST /admin/reports/:id/review */
+export function reviewReport(id: number, payload: { status: 1 | 2 | 3; audit_comment?: string }) {
+  return request<ReportDTO>(`/admin/reports/${id}/review`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+/** 拉取单个帖子（公开）：GET /item/:itemID —— 用于展示被举报帖子摘要 */
+export function getItem(itemID: number) {
+  return request<ItemDTO>(`/item/${itemID}`)
+}
