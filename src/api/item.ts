@@ -34,12 +34,24 @@ export interface CreateItemPayload {
   tag_ids?: number[]
 }
 
-/** 创建帖子：POST /item/create（创建即发布，无需审核，所有人可见） */
+/** 创建帖子：POST /item/create（创建即发布，无需审核，所有人可见）。
+ * 注意：后端该接口返回 {} 不返回 id，前端发布后需改用 listMyItems 取最新 id 再传图。 */
 export function createItem(payload: CreateItemPayload) {
   return request<{ id: number }>('/item/create', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+/** 我的发布（当前登录用户）：GET /item/mine，返回结构同 /item/list。
+ * 用于弥补 /item/create 不返回 id 的缺口——发布后取最新一条拿 id 再传图。 */
+export function listMyItems(params: ListItemsParams = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) qs.append(k, String(v))
+  })
+  const query = qs.toString()
+  return request<ItemListResult>(`/item/mine${query ? '?' + query : ''}`)
 }
 
 // 后端返回的帖子对象 —— 对应 model.ItemResponse

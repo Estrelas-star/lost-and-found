@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAppStore, type ItemType } from '../stores/app'
 import LocationSelector from './LocationSelector.vue'
-import { createItem, setItemImages } from '../api/item'
+import { createItem, setItemImages, listMyItems } from '../api/item'
 const store = useAppStore()
 
 // 进入发布页时拉取真实标签（后端 /tag/list），否则下拉 store.tags 一直为空 -> 显示 no data
@@ -68,7 +68,7 @@ async function submitPost() {
       const tagIds = form.value.tags
         .map((name) => store.tagIdByName[name])
         .filter((id): id is number => id != null)
-      const res = await createItem({
+      await createItem({
         title: form.value.title,
         description: form.value.desc,
         type: form.value.type === 'lost' ? 0 : 1,
@@ -78,10 +78,15 @@ async function submitPost() {
         location_id: form.value.locationId ?? undefined,
         tag_ids: tagIds,
       })
-      // 选了图片则上传（前端转 base64 作为 image_url 传给后端 images 接口）
+      // 选了图片则上传。后端 /item/create 不返回 id，改为拉取"我的发布"最新一条取 id
       if (selectedFiles.value.length) {
-        const urls = await Promise.all(selectedFiles.value.map(fileToDataUrl))
-        await setItemImages(res.data.id, urls.map((u, i) => ({ image_url: u, sort_order: i + 1 })))
+        const newId = await fetchNewItemId()
+        if (newId == null) {
+          ElMessage.warning('发布成功，但图片上传未能获取物品ID，可稍后在"我的发布"编辑补充')
+        } else {
+          const urls = await Promise.all(selectedFiles.value.map(fileToDataUrl))
+          await setItemImages(newId, urls.map((u, i) => ({ image_url: u, sort_order: i + 1 })))
+        }
       }
       resetForm()
       ElMessage.success('发布成功，所有人可在首页看到')
@@ -89,6 +94,18 @@ async function submitPost() {
       ElMessage.error((e as Error).message || '发布失败，请重试')
     }
   })
+}
+
+// 后端 /item/create 不返回 id，这里取"我的发布"里 created_at 最新的一条作为刚创建的帖子 id
+async function fetchNewItemId(): Promise<number | null> {
+  try {
+    const res = await listMyItems()
+    const items = res.data?.items ?? []
+    if (!items.length) return null
+    return items.reduce((a, b) => (b.created_at > a.created_at ? b : a)).id
+  } catch {
+    return null
+  }
 }
 
 function fileToDataUrl(file: File): Promise<string> {
