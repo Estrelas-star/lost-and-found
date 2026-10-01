@@ -41,6 +41,14 @@ function statusType(s: ItemStatus): 'primary' | 'warning' | 'success' | 'info' {
   return s === '已认领' ? 'success' : s === '已关闭' ? 'info' : s === '待认领' ? 'warning' : 'primary'
 }
 
+function friendlyError(e: unknown, fallback: string): string {
+  const msg = (e as Error)?.message || fallback
+  if (/无权利|无权限|permission|forbidden|not authorized|403/i.test(msg)) {
+    return '管理员暂无权操作该物品：后端尚未开放管理员改/删/下架他人物品的权限'
+  }
+  return msg
+}
+
 function openEdit(item: Item) {
   editId.value = item.id
   editForm.value = { title: item.title, tags: [...item.tags], location: item.location, desc: item.desc }
@@ -60,21 +68,29 @@ function submitEdit() {
   }).then(() => {
     editVisible.value = false
     ElMessage.success('修改成功')
-  }).catch((e) => ElMessage.error((e as Error).message || '修改失败'))
+  }).catch((e) => ElMessage.error(friendlyError(e, '修改失败')))
 }
 async function closeItem(item: Item) {
   try {
     await ElMessageBox.confirm(`确定要下架“${item.title}”吗？下架后其他人将看不到该物品。`, '下架确认', { type: 'warning', confirmButtonText: '确定下架', cancelButtonText: '取消' })
+  } catch { return }
+  try {
     await store.closeRemoteItem(item.id)
     ElMessage.success('已下架')
-  } catch { /* 用户取消 */ }
+  } catch (e) {
+    ElMessage.error(friendlyError(e, '下架失败'))
+  }
 }
 async function removeItem(item: Item) {
   try {
     await ElMessageBox.confirm(`确定要删除“${item.title}”吗？删除后无法恢复。`, '删除确认', { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' })
+  } catch { return }
+  try {
     await store.removeRemoteItem(item.id)
     ElMessage.success('删除成功')
-  } catch { /* 用户取消 */ }
+  } catch (e) {
+    ElMessage.error(friendlyError(e, '删除失败'))
+  }
 }
 </script>
 
