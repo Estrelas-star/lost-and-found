@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore, type Item, type ItemType, type Role } from './stores/app'
 import { navItems } from './navigation'
@@ -16,7 +16,6 @@ const search = ref('')
 const filter = ref<'全部' | ItemType>('全部')
 const categoryFilter = ref('全部')
 const locationFilter = ref('全部')
-const timeFilter = ref('全部')
 const currentPage = ref(1)
 const pageSize = ref(6)
 const selectedItem = ref<Item | null>(null)
@@ -28,31 +27,17 @@ const profileMenuOpen = ref(false)
 const roleLabels = { student: '学生端', itemAdmin: '失物招领管理', systemAdmin: '系统管理' }
 const pageTitle = computed(() => ({ home: '发现物品', publish: '发布信息', posts: '我的发布', claims: '我的认领', audit: '审核中心', manage: '物品管理', dashboard: '数据总览', users: '账号管理', notices: '公告管理' })[store.activeRoute])
 const visibleNavItems = computed(() => navItems[store.role].filter((item) => (item.roles as readonly Role[]).includes(store.role)))
-const categoryOptions = ['数码', '证件', '日用', '服饰', '书籍', '其他'] as const
-const locationOptions = computed(() => ['全部', ...Array.from(new Set(store.items.map((item) => item.location.split('·')[0]?.trim()).filter(Boolean)))])
-const timeOptions = ['全部', '近3天', '近7天', '近30天']
+const categoryOptions = computed(() => ['全部', ...store.tags.map((t) => t.name)])
+const locationOptions = computed(() => ['全部', ...store.locations.map((l) => l.name)])
+
 const allItems = computed(() => [...store.items, ...store.remoteItems])
 const filteredItems = computed(() => allItems.value.filter((item) => {
   const matchesType = filter.value === '全部' || item.type === filter.value
   const matchesCategory = categoryFilter.value === '全部' || item.tags.includes(categoryFilter.value)
   const matchesLocation = locationFilter.value === '全部' || item.location.includes(locationFilter.value)
   const matchesSearch = `${item.title}${item.location}${item.tags.join(' ')}`.toLowerCase().includes(search.value.toLowerCase())
-  const matchesTime = (() => {
-    if (timeFilter.value === '全部') return true
-    const raw = item.date
-    const match = raw.match(/(\d{2})-(\d{2})/)
-    if (!match) return true
-    const [, month, day] = match
-    const itemDate = new Date(2026, Number(month) - 1, Number(day))
-    const today = new Date(2026, 5, 17)
-    const diffDays = Math.floor((today.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24))
-    if (timeFilter.value === '近3天') return diffDays <= 3
-    if (timeFilter.value === '近7天') return diffDays <= 7
-    if (timeFilter.value === '近30天') return diffDays <= 30
-    return true
-  })()
 
-  return matchesType && matchesCategory && matchesLocation && matchesSearch && matchesTime
+  return matchesType && matchesCategory && matchesLocation && matchesSearch
 }))
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / pageSize.value)))
 const paginatedItems = computed(() => {
@@ -85,7 +70,7 @@ const auditItems = computed(() => pendingItems.value.filter((item) => {
 const paginatedAuditItems = computed(() => auditItems.value.slice((auditPage.value - 1) * auditPageSize.value, auditPage.value * auditPageSize.value))
 const stats = computed(() => ({ total: store.items.length + 26, returned: store.items.filter((item) => item.status === '已认领').length + 18, pending: pendingItems.value.length + 8, rate: '68%' }))
 
-watch([filter, categoryFilter, locationFilter, timeFilter, search], () => {
+watch([filter, categoryFilter, locationFilter, search], () => {
   currentPage.value = 1
 })
 watch([auditStatusFilter, auditTypeFilter, auditSearch], () => { auditPage.value = 1 })
@@ -100,6 +85,12 @@ watch(() => route.meta.page, (page) => {
 watch(() => store.activeRoute, (r) => {
   if (r === 'home' || r === 'posts') store.fetchItems()
 }, { immediate: true })
+
+// 进入应用即从公开接口拉取标签与地点，供首页筛选器和发布表单使用
+onMounted(() => {
+  store.fetchTags()
+  store.fetchLocations()
+})
 
 function go(key: string) {
   selectedItem.value = null
@@ -229,12 +220,6 @@ function submitReject() {
                 <el-select v-model="locationFilter" placeholder="全部">
                   <el-option label="全部" value="全部" />
                   <el-option v-for="location in locationOptions.filter((item) => item !== '全部')" :key="location" :label="location" :value="location" />
-                </el-select>
-              </div>
-              <div class="filter-box">
-                <span class="filter-label">时间</span>
-                <el-select v-model="timeFilter" placeholder="全部">
-                  <el-option v-for="time in timeOptions" :key="time" :label="time" :value="time" />
                 </el-select>
               </div>
             </div>

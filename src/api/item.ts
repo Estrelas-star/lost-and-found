@@ -4,6 +4,22 @@ import { request } from './http'
 // 帖子类型：0 丢失(lost) 1 拾到/招领(found)
 export type ItemType = 0 | 1
 
+// 标签 / 地点（公开列表，用于筛选器与发布表单）
+export interface TagDTO {
+  id: number
+  name: string
+  color?: string
+  sort_order: number
+}
+export interface LocationDTO {
+  id: number
+  name: string
+  parent_id: number
+  level: number
+  address?: string
+  sort_order: number
+}
+
 // 创建帖子请求体 —— 对应后端 model.CreateItemRequest
 // 必填：title, description, type, lost_found_time
 export interface CreateItemPayload {
@@ -41,6 +57,8 @@ export interface ItemDTO {
   user_id: number
   location_detail?: string
   images?: { image_url: string; sort_order: number }[]
+  tags?: TagDTO[]            // 后端返回完整标签对象数组
+  locations?: LocationDTO[]  // 后端返回地点链（从根到叶）
 }
 
 export interface ListItemsParams {
@@ -136,4 +154,56 @@ export function reviewReport(id: number, payload: { status: 1 | 2 | 3; audit_com
 /** 拉取单个帖子（公开）：GET /item/:itemID —— 用于展示被举报帖子摘要 */
 export function getItem(itemID: number) {
   return request<ItemDTO>(`/item/${itemID}`)
+}
+
+// —— 标签 / 地点（公开列表，用于筛选器与发布表单）——
+/** 标签列表（公开，按 sort_order 升序）：GET /tag/list，data 直接是 TagDTO[] */
+export function listTags() {
+  return request<TagDTO[]>('/tag/list')
+}
+
+/** 地点列表（公开，可按 parent_id/level 筛选）：GET /location/list，data 直接是 LocationDTO[] */
+export function listLocations(params: { parent_id?: number; level?: number } = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) qs.append(k, String(v))
+  })
+  const query = qs.toString()
+  return request<LocationDTO[]>(`/location/list${query ? '?' + query : ''}`)
+}
+
+// —— 物品管理：真实增删改（本人操作）——
+export interface UpdateItemPayload {
+  id: number
+  title?: string
+  description?: string
+  location_id?: number
+  location_detail?: string
+  lost_found_time?: string
+  contact?: string
+  credit_reward?: number
+  tag_ids?: number[]
+}
+
+/** 增量更新自己的物品：POST /item/update */
+export function updateItem(payload: UpdateItemPayload) {
+  return request<null>('/item/update', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+/** 删除自己的物品（逻辑删除）：POST /item/delete，body { id } */
+export function deleteItem(id: number) {
+  return request<null>('/item/delete', {
+    method: 'POST',
+    body: JSON.stringify({ id }),
+  })
+}
+
+/** 发布者关闭（下架）自己的物品：POST /item/{id}/close */
+export function closeItem(id: number) {
+  return request<null>(`/item/${id}/close`, {
+    method: 'POST',
+  })
 }

@@ -1,6 +1,11 @@
 import { computed, ref } from 'vue'
 import { login as apiLogin, logout as apiLogout } from '../api/user'
-import { listItems, getItem, listReports, reviewReport as reviewReportApi, type ReportDTO, type ListReportsParams } from '../api/item'
+import {
+  listItems, getItem, listTags, listLocations,
+  updateItem as updateItemApi, deleteItem as deleteItemApi, closeItem as closeItemApi,
+  listReports, reviewReport as reviewReportApi,
+  type ReportDTO, type ListReportsParams, type TagDTO, type LocationDTO, type ListItemsParams,
+} from '../api/item'
 import { setAuth, clearAuth, getToken, getStoredUser } from '../utils/auth'
 import type { UserResponse } from '../api/types'
 
@@ -130,17 +135,19 @@ export const useAppStore = defineStore('app', () => {
 
   // —— 真实后端数据（与本地 mock 并存，不替换）——
   const remoteItems = ref<Item[]>([])
-  async function fetchItems() {
+  async function fetchItems(params: ListItemsParams = {}) {
     try {
-      const res = await listItems()
+      const res = await listItems(params)
       const meId = authUser.value?.id
       const meName = currentUser.value.name
       remoteItems.value = (res.data?.items ?? []).map((it) => ({
         id: it.id,
         type: (it.type === 0 ? 'lost' : 'found') as ItemType,
         title: it.title,
-        tags: [],
-        location: it.location_detail || '',
+        tags: (it.tags ?? []).map((t) => t.name),
+        location: (it.locations && it.locations.length)
+          ? it.locations.map((l) => l.name).join(' · ')
+          : (it.location_detail || ''),
         date: (it.created_at || '').slice(0, 10),
         status: it.status === 0 ? '招领中' : it.status === 1 ? '已认领' : '已关闭',
         author: meId != null && it.user_id === meId ? meName : `用户${it.user_id}`,
@@ -148,11 +155,28 @@ export const useAppStore = defineStore('app', () => {
         icon: it.type === 0 ? '◌' : '◉',
         desc: it.description,
         contact: it.contact,
+        images: (it.images ?? []).map((img) => img.image_url),
       }))
     } catch {
       // 拉取失败不影响本地 mock 展示
     }
   }
+
+  // —— 标签 / 地点（公开，用于筛选器与发布表单）——
+  const tags = ref<TagDTO[]>([])
+  const locations = ref<LocationDTO[]>([])
+  async function fetchTags() {
+    try { const res = await listTags(); tags.value = res.data ?? [] } catch { /* 拉取失败不影响 */ }
+  }
+  async function fetchLocations() {
+    try { const res = await listLocations(); locations.value = res.data ?? [] } catch { /* 拉取失败不影响 */ }
+  }
+  // 标签名 -> id 映射（发布/编辑时把中文名转成后端 tag_ids）
+  const tagIdByName = computed(() => {
+    const m: Record<string, number> = {}
+    tags.value.forEach((t) => { m[t.name] = t.id })
+    return m
+  })
 
   // —— 举报审核（审核员）：真接口 + mock 兜底 ——
   const reports = ref<ReportDTO[]>([
@@ -192,6 +216,19 @@ export const useAppStore = defineStore('app', () => {
       }
     }
   }
+  // —— 物品真实增删改（本人，调后端后刷新列表）——
+  async function saveRemoteItem(id: number, payload: { title?: string; description?: string; location_detail?: string; tag_ids?: number[] }) {
+    await updateItemApi({ id, ...payload })
+    await fetchItems()
+  }
+  async function removeRemoteItem(id: number) {
+    await deleteItemApi(id)
+    await fetchItems()
+  }
+  async function closeRemoteItem(id: number) {
+    await closeItemApi(id)
+    await fetchItems()
+  }
   function submitClaim(item: Item) { claims.value.unshift({ id: Date.now(), item: item.title, applicant: currentUser.value.name, date: '刚刚', status: '审核中' }) }
   function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '招领中' }
   function reject(id: number, reason: string) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '已驳回' }
@@ -226,5 +263,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, reports, fetchReports, reviewReport, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, tags, locations, fetchTags, fetchLocations, tagIdByName, reports, fetchReports, reviewReport, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem }
 })

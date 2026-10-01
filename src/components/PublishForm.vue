@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { type ItemType } from '../stores/app'
+import { useAppStore, type ItemType } from '../stores/app'
 import LocationSelector from './LocationSelector.vue'
 import { createItem, setItemImages } from '../api/item'
-const categoryOptions = ['数码', '证件', '日用', '服饰', '书籍', '其他']
+const store = useAppStore()
+
+// 进入发布页时拉取真实标签（后端 /tag/list），否则下拉 store.tags 一直为空 -> 显示 no data
+onMounted(() => { store.fetchTags() })
 
 const form = ref({ type: 'lost' as ItemType, title: '', tags: [] as string[], location: '', contact: '', desc: '', images: [] as string[] })
 const errors = ref<Record<string, string>>({})
@@ -62,6 +65,9 @@ async function submitPost() {
       return
     }
     try {
+      const tagIds = form.value.tags
+        .map((name) => store.tagIdByName[name])
+        .filter((id): id is number => id != null)
       const res = await createItem({
         title: form.value.title,
         description: form.value.desc,
@@ -69,6 +75,7 @@ async function submitPost() {
         lost_found_time: new Date().toISOString(),
         contact: form.value.contact,
         location_detail: form.value.location,
+        tag_ids: tagIds,
       })
       // 选了图片则上传（前端转 base64 作为 image_url 传给后端 images 接口）
       if (selectedFiles.value.length) {
@@ -122,7 +129,7 @@ function fileToDataUrl(file: File): Promise<string> {
         <el-col :span="12">
           <el-form-item label="物品标签" :error="errors.tags">
             <el-select v-model="form.tags" multiple placeholder="请选择标签" class="publish-control">
-              <el-option v-for="tag in categoryOptions" :key="tag" :label="tag" :value="tag" />
+              <el-option v-for="tag in store.tags" :key="tag.id" :label="tag.name" :value="tag.name" />
             </el-select>
           </el-form-item>
         </el-col>
