@@ -146,6 +146,7 @@ export const useAppStore = defineStore('app', () => {
 
   // —— 真实后端数据（与本地 mock 并存，不替换）——
   const remoteItems = ref<Item[]>([])
+  const remoteTotal = ref<number>(0)
   // 后端 ItemDTO -> 前端 Item 的统一映射（首页 / 我的发布 共用）
   function mapToFront(it: ItemDTO): Item {
     const meId = authUser.value?.id
@@ -173,6 +174,7 @@ export const useAppStore = defineStore('app', () => {
     try {
       const res = await listItems(params)
       remoteItems.value = (res.data?.items ?? []).map(mapToFront)
+      remoteTotal.value = res.data?.total ?? 0
     } catch {
       // 拉取失败不影响本地 mock 展示
     }
@@ -296,5 +298,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, forceLogout, initSession }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, forceLogout, initSession }
 })

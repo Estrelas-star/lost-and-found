@@ -30,6 +30,24 @@ const pageTitle = computed(() => ({ home: '发现物品', publish: '发布信息
 const visibleNavItems = computed(() => navItems[store.role].filter((item) => (item.roles as readonly Role[]).includes(store.role)))
 const categoryOptions = computed(() => ['全部', ...store.tags.map((t) => t.name)])
 const locationOptions = computed(() => ['全部', ...store.locations.map((l) => l.name)])
+// 首页地点筛选：优先用后端真实地点树做级联选择；无数据时回退扁平下拉
+const usingRealLocations = computed(() => store.locations.length > 0)
+interface CascaderNode { value: number; label: string; children: CascaderNode[] }
+function buildLocTree(list: { id: number; name: string; parent_id: number }[]): CascaderNode[] {
+  const map = new Map<number, CascaderNode>()
+  list.forEach((l) => map.set(l.id, { value: l.id, label: l.name, children: [] }))
+  const roots: CascaderNode[] = []
+  list.forEach((l) => {
+    const node = map.get(l.id)!
+    const parent = l.parent_id != null && l.parent_id !== 0 ? map.get(l.parent_id) : undefined
+    if (parent) parent.children.push(node)
+    else roots.push(node)
+  })
+  return roots
+}
+const locationCascaderOptions = computed(() => buildLocTree(store.locations))
+// 级联选中的路径（校区/建筑/楼层任意层级），取末位作为筛选 location_id
+const locationPath = ref<number[]>([])
 
 // 首页数据直接取后端按筛选条件返回的真实结果（已移除本地 mock 与前端过滤）
 const filteredItems = computed(() => store.remoteItems)
@@ -63,9 +81,12 @@ const auditItems = computed(() => pendingItems.value.filter((item) => {
 const paginatedAuditItems = computed(() => auditItems.value.slice((auditPage.value - 1) * auditPageSize.value, auditPage.value * auditPageSize.value))
 const stats = computed(() => ({ total: store.items.length + 26, returned: store.items.filter((item) => item.status === '已认领').length + 18, pending: pendingItems.value.length + 8, rate: '68%' }))
 
-watch([filter, categoryFilter, locationFilter, search], () => {
+// 筛选条件变化：重置到第 1 页并加 300ms 防抖，避免搜索框每敲一字就打一次后端
+let homeFilterTimer: ReturnType<typeof setTimeout> | null = null
+watch([filter, categoryFilter, locationFilter, locationPath, search], () => {
   currentPage.value = 1
-  applyHomeFilters()   // 条件变化 -> 重新拉后端筛选结果
+  if (homeFilterTimer) clearTimeout(homeFilterTimer)
+  homeFilterTimer = setTimeout(() => applyHomeFilters(), 300)
 })
 watch([auditStatusFilter, auditTypeFilter, auditSearch], () => { auditPage.value = 1 })
 
@@ -80,9 +101,28 @@ function applyHomeFilters() {
   store.fetchItems({
     type: filter.value === '全部' ? undefined : filter.value === 'lost' ? 0 : 1,
     tag_id: categoryFilter.value === '全部' ? undefined : store.tagIdByName[categoryFilter.value],
-    location_id: locationFilter.value === '全部' ? undefined : store.locationIdByName[locationFilter.value],
+    location_id: usingRealLocations.value
+      ? (locationPath.value.length ? locationPath.value[locationPath.value.length - 1] : undefined)
+      : (locationFilter.value === '全部' ? undefined : store.locationIdByName[locationFilter.value]),
     keyword: search.value.trim() || undefined,
+    page: currentPage.value,
+    page_size: pageSize.value,
   })
+}
+
+// 真分页：翻页/改每页大小 -> 重新拉后端对应页（用后端真实 total）
+function onHomePage(p: number) { currentPage.value = p; applyHomeFilters() }
+function onHomeSize(s: number) { pageSize.value = s; currentPage.value = 1; applyHomeFilters() }
+
+// 重置首页所有筛选条件
+function resetHomeFilters() {
+  search.value = ''
+  filter.value = '全部'
+  categoryFilter.value = '全部'
+  locationFilter.value = '全部'
+  locationPath.value = []
+  currentPage.value = 1
+  applyHomeFilters()
 }
 
 // 进入首页 / 我的发布时，从后端拉取真实帖子
@@ -223,7 +263,7 @@ function submitReject() {
         <section v-if="store.activeRoute === 'home'" class="page-section">
           <div class="welcome-row"><div><span class="eyebrow">WED · 06.17</span><h1>你好，{{ store.currentUser.name }} <span class="wave">✦</span></h1><p>今天也帮一件物品找到回家的路吧。</p></div><button class="primary-btn" @click="go('publish')">＋ 发布信息</button></div>
           <div class="notice-strip"><span class="notice-icon">✦</span><div><strong>{{ store.notices[0].title }}</strong><small>{{ store.notices[0].date }} · 查看详情 →</small></div><button @click="flash('公告已标记为已读')">×</button></div>
-          <div class="section-head"><div><h2>校园里的物品</h2><p>实时更新，共 {{ filteredItems.length }} 条信息</p></div></div>
+          <div class="section-head"><div><h2>校园里的物品</h2><p>实时更新，共 {{ store.remoteTotal }} 条信息</p></div></div>
 
           <div class="filter-bar">
             <div class="filter-row">
@@ -248,11 +288,13 @@ function submitReject() {
               </div>
               <div class="filter-box">
                 <span class="filter-label">地点</span>
-                <el-select v-model="locationFilter" placeholder="全部">
+                <el-cascader v-if="usingRealLocations" v-model="locationPath" :options="locationCascaderOptions" :props="{ checkStrictly: true, expandTrigger: 'hover' }" placeholder="全部地点" clearable class="filter-cascader" />
+                <el-select v-else v-model="locationFilter" placeholder="全部">
                   <el-option label="全部" value="全部" />
                   <el-option v-for="location in locationOptions.filter((item) => item !== '全部')" :key="location" :label="location" :value="location" />
                 </el-select>
               </div>
+              <button class="filter-reset" @click="resetHomeFilters">重置筛选</button>
             </div>
           </div>
 
@@ -264,15 +306,16 @@ function submitReject() {
             <div v-if="!filteredItems.length" class="empty-state"><el-empty description="暂时没有找到相关物品" /></div>
           </div>
 
-          <div v-if="filteredItems.length" class="pagination-box">
+          <div v-if="store.remoteTotal" class="pagination-box">
             <el-pagination
-              v-model:current-page="currentPage"
-              v-model:page-size="pageSize"
+              :current-page="currentPage"
+              :page-size="pageSize"
               :page-sizes="[6, 12, 18]"
-              :total="filteredItems.length"
+              :total="store.remoteTotal"
               layout="total, sizes, prev, pager, next"
               background
-              @size-change="currentPage = 1"
+              @current-change="onHomePage"
+              @size-change="onHomeSize"
             />
           </div>
         </section>
