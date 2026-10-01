@@ -9,7 +9,7 @@ const store = useAppStore()
 // 进入发布页时拉取真实标签（后端 /tag/list），否则下拉 store.tags 一直为空 -> 显示 no data
 onMounted(() => { store.fetchTags() })
 
-const form = ref({ type: 'lost' as ItemType, title: '', tags: [] as string[], location: '', contact: '', desc: '', images: [] as string[] })
+const form = ref({ type: 'lost' as ItemType, title: '', tags: [] as string[], location: '', locationId: null as number | null, contact: '', desc: '', images: [] as string[] })
 const errors = ref<Record<string, string>>({})
 const formRef = ref<FormInstance>()
 const locationSelectorRef = ref<InstanceType<typeof LocationSelector>>()
@@ -52,7 +52,7 @@ function validateForm() {
 }
 
 function resetForm() {
-  form.value = { type: 'lost', title: '', tags: [], location: '', contact: '', desc: '', images: [] }
+  form.value = { type: 'lost', title: '', tags: [], location: '', locationId: null, contact: '', desc: '', images: [] }
   selectedFiles.value = []
   locationSelectorRef.value?.reset()
   errors.value = {}
@@ -75,6 +75,7 @@ async function submitPost() {
         lost_found_time: new Date().toISOString(),
         contact: form.value.contact,
         location_detail: form.value.location,
+        location_id: form.value.locationId ?? undefined,
         tag_ids: tagIds,
       })
       // 选了图片则上传（前端转 base64 作为 image_url 传给后端 images 接口）
@@ -143,7 +144,7 @@ function fileToDataUrl(file: File): Promise<string> {
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="丢失 / 拾取地点" :error="errors.location">
-            <LocationSelector ref="locationSelectorRef" v-model="form.location" />
+            <LocationSelector ref="locationSelectorRef" v-model="form.location" v-model:location-id="form.locationId" />
           </el-form-item>
         </el-col>
         <el-col :span="12"><el-form-item label="已选择地点"><el-input :model-value="form.location" readonly placeholder="选择后自动生成详细地点" /></el-form-item></el-col>
