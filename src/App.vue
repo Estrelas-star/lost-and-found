@@ -31,15 +31,8 @@ const visibleNavItems = computed(() => navItems[store.role].filter((item) => (it
 const categoryOptions = computed(() => ['全部', ...store.tags.map((t) => t.name)])
 const locationOptions = computed(() => ['全部', ...store.locations.map((l) => l.name)])
 
-const allItems = computed(() => [...store.items, ...store.remoteItems])
-const filteredItems = computed(() => allItems.value.filter((item) => {
-  const matchesType = filter.value === '全部' || item.type === filter.value
-  const matchesCategory = categoryFilter.value === '全部' || item.tags.includes(categoryFilter.value)
-  const matchesLocation = locationFilter.value === '全部' || item.location.includes(locationFilter.value)
-  const matchesSearch = `${item.title}${item.location}${item.tags.join(' ')}`.toLowerCase().includes(search.value.toLowerCase())
-
-  return matchesType && matchesCategory && matchesLocation && matchesSearch
-}))
+// 首页数据直接取后端按筛选条件返回的真实结果（已移除本地 mock 与前端过滤）
+const filteredItems = computed(() => store.remoteItems)
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / pageSize.value)))
 const paginatedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
@@ -72,6 +65,7 @@ const stats = computed(() => ({ total: store.items.length + 26, returned: store.
 
 watch([filter, categoryFilter, locationFilter, search], () => {
   currentPage.value = 1
+  applyHomeFilters()   // 条件变化 -> 重新拉后端筛选结果
 })
 watch([auditStatusFilter, auditTypeFilter, auditSearch], () => { auditPage.value = 1 })
 
@@ -81,9 +75,19 @@ watch(() => route.meta.page, (page) => {
   store.setActiveRoute(typeof page === 'string' ? page : roleHome[store.role])
 }, { immediate: true })
 
+// 首页筛选条件 -> 发给后端 GET /item/list（服务端筛选，不再前端过滤）
+function applyHomeFilters() {
+  store.fetchItems({
+    type: filter.value === '全部' ? undefined : filter.value === 'lost' ? 0 : 1,
+    tag_id: categoryFilter.value === '全部' ? undefined : store.tagIdByName[categoryFilter.value],
+    location_id: locationFilter.value === '全部' ? undefined : store.locationIdByName[locationFilter.value],
+    keyword: search.value.trim() || undefined,
+  })
+}
+
 // 进入首页 / 我的发布时，从后端拉取真实帖子
 watch(() => store.activeRoute, (r) => {
-  if (r === 'home') store.fetchItems()
+  if (r === 'home') applyHomeFilters()
   if (r === 'posts') store.fetchMyItems()
 }, { immediate: true })
 
