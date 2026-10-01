@@ -1,10 +1,10 @@
 import { computed, ref } from 'vue'
 import { login as apiLogin, logout as apiLogout, getMe } from '../api/user'
 import {
-  listItems, getItem, listTags, listLocations,
+  listItems, getItem, listTags, listLocations, listMyItems,
   updateItem as updateItemApi, deleteItem as deleteItemApi, closeItem as closeItemApi,
   listReports, reviewReport as reviewReportApi,
-  type ReportDTO, type ListReportsParams, type TagDTO, type LocationDTO, type ListItemsParams,
+  type ReportDTO, type ListReportsParams, type TagDTO, type LocationDTO, type ListItemsParams, type ItemDTO,
 } from '../api/item'
 import { setAuth, clearAuth, getToken, getStoredUser } from '../utils/auth'
 import type { UserResponse } from '../api/types'
@@ -152,30 +152,46 @@ export const useAppStore = defineStore('app', () => {
 
   // —— 真实后端数据（与本地 mock 并存，不替换）——
   const remoteItems = ref<Item[]>([])
+  // 后端 ItemDTO -> 前端 Item 的统一映射（首页 / 我的发布 共用）
+  function mapToFront(it: ItemDTO): Item {
+    const meId = authUser.value?.id
+    const meName = currentUser.value.name
+    return {
+      id: it.id,
+      type: (it.type === 0 ? 'lost' : 'found') as ItemType,
+      title: it.title,
+      tags: (it.tags ?? []).map((t) => t.name),
+      location: (it.locations && it.locations.length)
+        ? it.locations.map((l) => l.name).join(' · ')
+        : (it.location_detail || ''),
+      date: (it.created_at || '').slice(0, 10),
+      status: it.status === 0 ? '招领中' : it.status === 1 ? '已认领' : '已关闭',
+      author: meId != null && it.user_id === meId ? meName : `用户${it.user_id}`,
+      color: 'blue',
+      icon: it.type === 0 ? '◌' : '◉',
+      desc: it.description,
+      contact: it.contact,
+      images: (it.images ?? []).map((img) => img.image_url),
+    }
+  }
+
   async function fetchItems(params: ListItemsParams = {}) {
     try {
       const res = await listItems(params)
-      const meId = authUser.value?.id
-      const meName = currentUser.value.name
-      remoteItems.value = (res.data?.items ?? []).map((it) => ({
-        id: it.id,
-        type: (it.type === 0 ? 'lost' : 'found') as ItemType,
-        title: it.title,
-        tags: (it.tags ?? []).map((t) => t.name),
-        location: (it.locations && it.locations.length)
-          ? it.locations.map((l) => l.name).join(' · ')
-          : (it.location_detail || ''),
-        date: (it.created_at || '').slice(0, 10),
-        status: it.status === 0 ? '招领中' : it.status === 1 ? '已认领' : '已关闭',
-        author: meId != null && it.user_id === meId ? meName : `用户${it.user_id}`,
-        color: 'blue',
-        icon: it.type === 0 ? '◌' : '◉',
-        desc: it.description,
-        contact: it.contact,
-        images: (it.images ?? []).map((img) => img.image_url),
-      }))
+      remoteItems.value = (res.data?.items ?? []).map(mapToFront)
     } catch {
       // 拉取失败不影响本地 mock 展示
+    }
+  }
+
+  // —— 我的发布（当前登录用户）：GET /item/mine ——
+  const myItems = ref<Item[]>([])
+  async function fetchMyItems() {
+    try {
+      const res = await listMyItems()
+      myItems.value = (res.data?.items ?? []).map(mapToFront)
+    } catch {
+      // 未登录 / 接口异常：保持空，界面显示空态
     }
   }
 
@@ -280,5 +296,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, tags, locations, fetchTags, fetchLocations, tagIdByName, reports, fetchReports, reviewReport, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, forceLogout, initSession }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, reports, fetchReports, reviewReport, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, forceLogout, initSession }
 })
