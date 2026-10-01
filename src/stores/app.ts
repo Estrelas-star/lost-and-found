@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { login as apiLogin, logout as apiLogout } from '../api/user'
+import { login as apiLogin, logout as apiLogout, getMe } from '../api/user'
 import {
   listItems, getItem, listTags, listLocations,
   updateItem as updateItemApi, deleteItem as deleteItemApi, closeItem as closeItemApi,
@@ -121,12 +121,29 @@ export const useAppStore = defineStore('app', () => {
     isAuthenticated.value = true  // 告诉全站"已登录"
   }
 
-  async function logout() {
-    try { await apiLogout() } catch { /* 后端失败也照退 */ }  // 通知后端失效 token
-    clearAuth()                   // 清空 localStorage 登录态（退出清空）
-    authUser.value = null         // 清空当前用户 → 名字/身份立即回到未登录态
+  function forceLogout() {
+    clearAuth()                   // 清空 localStorage 登录态
+    authUser.value = null         // 当前用户 → 回到未登录态
     isAuthenticated.value = false
     setRole('student')            // 重置角色, 避免残留管理员身份
+  }
+
+  async function logout() {
+    try { await apiLogout() } catch { /* 后端失败也照退 */ }  // 通知后端失效 token
+    forceLogout()
+  }
+
+  // 启动校验：若本地有 token，调 /user/me 拉取最新本人信息并校验会话是否仍有效
+  // 失败(10005/10006/2)由 http.ts 清空登录态并派发 auth:expired，此处同步前端状态
+  async function initSession() {
+    if (!getToken()) return
+    try {
+      const res = await getMe()
+      authUser.value = res.data                       // 刷新昵称/角色/积分/QQ 绑定等
+      setRole(roleMap[res.data.role] ?? 'student')
+    } catch {
+      forceLogout()                                   // 会话已失效，回退未登录
+    }
   }
 
   function publish(item: Omit<Item, 'id' | 'author' | 'date' | 'status'> & { status?: ItemStatus }) {
@@ -263,5 +280,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, tags, locations, fetchTags, fetchLocations, tagIdByName, reports, fetchReports, reviewReport, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, tags, locations, fetchTags, fetchLocations, tagIdByName, reports, fetchReports, reviewReport, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, forceLogout, initSession }
 })
