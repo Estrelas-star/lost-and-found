@@ -13,7 +13,11 @@ const rejectVisible = ref(false)
 const rejectReason = ref('')
 const rejectingId = ref<number | null>(null)
 const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
-const filteredItems = computed(() => pendingItems.value.filter((item) => {
+// 后端当前没有“待审核”状态(只有 0已发布/1已认领/2已关闭)，帖子审核 tab 用演示数据兜底
+const usingPostFallback = computed(() => pendingItems.value.length === 0)
+const demoPending = computed(() => store.items.map((it) => ({ ...it, status: '待审核' as const })))
+const effectivePending = computed(() => pendingItems.value.length ? pendingItems.value : demoPending.value)
+const filteredItems = computed(() => effectivePending.value.filter((item) => {
   const text = `${item.title}${item.author}${item.location}${item.tags.join(' ')}`.toLowerCase()
   return (status.value === '全部' || item.status === status.value) && (type.value === '全部' || item.type === type.value) && text.includes(search.value.trim().toLowerCase())
 }))
@@ -82,6 +86,9 @@ onMounted(() => { store.fetchReports({ target_type: 0 }) })
 
     <el-tabs v-model="activeTab">
       <el-tab-pane label="帖子审核" name="posts">
+        <el-alert v-if="usingPostFallback" type="warning" show-icon :closable="false" style="margin-bottom:16px"
+          title="后端暂无待审核数据"
+          description="后端当前未提供“待审核”状态的帖子，下方为演示数据。真实待审核信息接入后将自动替换。" />
         <div class="audit-toolbar"><el-input v-model="search" clearable placeholder="搜索物品名称、发布者或地点" class="audit-search"/><el-select v-model="status" placeholder="按状态"><el-option label="全部状态" value="全部"/><el-option label="待审核" value="待审核"/></el-select><el-select v-model="type" placeholder="按类型"><el-option label="全部类型" value="全部"/><el-option label="寻物" value="lost"/><el-option label="招领" value="found"/></el-select></div>
         <div class="audit-table-wrap"><el-table :data="pagedItems" stripe empty-text="暂无待审核信息"><el-table-column label="图片" width="82"><template #default="{ row }"><div class="audit-thumb" :class="row.color"><img v-if="row.images?.[0]" :src="row.images[0]" alt="物品图片"/><span v-else>{{ row.icon }}</span></div></template></el-table-column><el-table-column prop="title" label="物品名称" min-width="170"/><el-table-column label="分类" min-width="130"><template #default="{ row }"><div class="audit-tags"><el-tag v-for="tag in row.tags" :key="tag" size="small">{{ tag }}</el-tag></div></template></el-table-column><el-table-column prop="author" label="发布者" min-width="100"/><el-table-column prop="date" label="发布时间" min-width="100"/><el-table-column label="当前状态" min-width="100"><template #default="{ row }"><el-tag type="warning">{{ row.status }}</el-tag></template></el-table-column><el-table-column label="操作" fixed="right" width="150"><template #default="{ row }"><el-button type="success" link @click="approve(row.id)">通过</el-button><el-button type="danger" link @click="openReject(row.id)">驳回</el-button></template></el-table-column></el-table><div class="audit-pagination"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[6, 12, 24]" :total="filteredItems.length" layout="total, sizes, prev, pager, next" background/></div></div>
       </el-tab-pane>
