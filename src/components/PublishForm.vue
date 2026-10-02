@@ -145,8 +145,8 @@ function fileToDataUrl(file: File): Promise<string> {
 
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="物品标签" :error="errors.tags">
-            <el-select v-model="form.tags" multiple placeholder="请选择标签" class="publish-control">
+          <el-form-item label="物品标签" :error="errors.tags" required>
+            <el-select v-model="form.tags" multiple filterable placeholder="请选择标签" class="publish-control">
               <el-option v-for="tag in store.tags" :key="tag.id" :label="tag.name" :value="tag.name" />
             </el-select>
           </el-form-item>
@@ -160,7 +160,7 @@ function fileToDataUrl(file: File): Promise<string> {
 
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="丢失 / 拾取地点" :error="errors.location">
+          <el-form-item label="丢失 / 拾取地点" :error="errors.location" required>
             <LocationSelector ref="locationSelectorRef" v-model="form.location" v-model:location-id="form.locationId" />
           </el-form-item>
         </el-col>
@@ -168,7 +168,7 @@ function fileToDataUrl(file: File): Promise<string> {
       </el-row>
 
       <el-row>
-        <el-col :span="24"><el-form-item label="详细描述" :error="errors.desc"><el-input v-model="form.desc" type="textarea" :rows="4" placeholder="颜色、特征、时间等线索..." /></el-form-item></el-col>
+        <el-col :span="24"><el-form-item label="详细描述" :error="errors.desc" required><el-input v-model="form.desc" type="textarea" :rows="4" placeholder="颜色、特征、时间等线索..." /></el-form-item></el-col>
       </el-row>
 
       <el-row>
