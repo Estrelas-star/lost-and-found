@@ -3,6 +3,7 @@ import { login as apiLogin, logout as apiLogout, getMe } from '../api/user'
 import {
   listItems, getItem, listTags, listLocations, listMyItems,
   updateItem as updateItemApi, deleteItem as deleteItemApi, closeItem as closeItemApi,
+  claimItem, cancelClaim, confirmItem,
   listReports, reviewReport as reviewReportApi,
   type ReportDTO, type ListReportsParams, type TagDTO, type LocationDTO, type ListItemsParams, type ItemDTO,
 } from '../api/item'
@@ -81,7 +82,10 @@ export const useAppStore = defineStore('app', () => {
     { id: 2, title: '毕业季物品集中认领活动开始啦', date: '2026-06-08', tag: '活动' }
   ])
   const items = ref<Item[]>([])
-  const claims = ref<Claim[]>([{ id: 1, item: '黑色 AirPods Pro 2', applicant: '林同学', date: '06-15 14:20', status: '审核中' }])
+  // 我的认领：记录我认领过的物品 id（localStorage 持久化，用于"我的认领"页与撤销判断）
+  const myClaimedIds = ref<number[]>(loadClaimedIds())
+  function loadClaimedIds(): number[] { try { return JSON.parse(localStorage.getItem('myClaimedIds') || '[]') } catch { return [] } }
+  function saveClaimedIds() { localStorage.setItem('myClaimedIds', JSON.stringify(myClaimedIds.value)) }
   const favoriteItemIds = ref<number[]>([])
   const likedItemIds = ref<number[]>([])
   const comments = ref<Comment[]>([
@@ -100,7 +104,8 @@ export const useAppStore = defineStore('app', () => {
     }
     return users[role.value] // 未登录兜底
   })
-  const pendingCount = computed(() => items.value.filter((item) => item.status === '待审核').length + claims.value.filter((claim) => claim.status === '审核中').length)
+  // 侧边栏角标：我发布的、已被认领待我确认的数量（真实数据）
+  const pendingCount = computed(() => myItems.value.filter((item) => item.status === '已认领').length)
 
   function setRole(nextRole: Role) {
     role.value = nextRole
@@ -264,10 +269,23 @@ export const useAppStore = defineStore('app', () => {
     await closeItemApi(id)
     await fetchItems()
   }
-  function submitClaim(item: Item) { claims.value.unshift({ id: Date.now(), item: item.title, applicant: currentUser.value.name, date: '刚刚', status: '审核中' }) }
+  // 真实认领：调后端 /item/:id/claim（无审核，直接 0->1），成功后记录到 myClaimedIds
+  async function submitClaim(id: number) {
+    await claimItem(id)
+    if (!myClaimedIds.value.includes(id)) { myClaimedIds.value.push(id); saveClaimedIds() }
+  }
+  // 撤销认领：/item/:id/claim/cancel（1->0）
+  async function cancelMyClaim(id: number) {
+    await cancelClaim(id)
+    myClaimedIds.value = myClaimedIds.value.filter((x) => x !== id)
+    saveClaimedIds()
+  }
+  // 发布者确认认领：/item/:id/confirm（1->2，发放积分）
+  async function confirmMyItem(id: number) { await confirmItem(id) }
+  // 我的认领页数据源：公开列表中我认领过的物品（进入 claims 页时拉全量）
+  const myClaims = computed(() => remoteItems.value.filter((i) => myClaimedIds.value.includes(i.id)))
   function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '招领中' }
   function reject(id: number, reason: string) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '已驳回' }
-  function updateClaim(id: number, status: string) { const claim = claims.value.find((entry) => entry.id === id); if (claim) claim.status = status }
   function updateItem(id: number, patch: Partial<Item>) {
     const item = items.value.find((entry) => entry.id === id)
     if (item) Object.assign(item, patch)
@@ -298,5 +316,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, claims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, updateClaim, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, forceLogout, initSession }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaimedIds, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, forceLogout, initSession }
 })

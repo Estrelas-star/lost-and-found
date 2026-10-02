@@ -219,3 +219,19 @@ export function closeItem(id: number) {
     method: 'POST',
   })
 }
+
+
+// —— 认领流程（status: 0已发布/招领中 -> 1已认领 -> 2已关闭；无审核环节）——
+/** 认领物品：POST /item/:id/claim（非发布者；status 0->1）。
+ * 错误码：30006 未绑定QQ / 20003 已被认领 / 20002 已关闭 / 30004 认领自己 */
+export function claimItem(id: number) {
+  return request<null>(`/item/${id}/claim`, { method: 'POST' })
+}
+/** 撤销认领：POST /item/:id/claim/cancel（认领者或发布者；status 1->0） */
+export function cancelClaim(id: number) {
+  return request<null>(`/item/${id}/claim/cancel`, { method: 'POST' })
+}
+/** 发布者确认认领：POST /item/:id/confirm（status 1->2，发放积分） */
+export function confirmItem(id: number) {
+  return request<null>(`/item/${id}/confirm`, { method: 'POST' })
+}
