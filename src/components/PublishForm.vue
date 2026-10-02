@@ -164,7 +164,7 @@ function fileToDataUrl(file: File): Promise<string> {
             <LocationSelector ref="locationSelectorRef" v-model="form.location" v-model:location-id="form.locationId" />
           </el-form-item>
         </el-col>
-        <el-col :span="12"><el-form-item label="已选择地点"><el-input :model-value="form.location" readonly placeholder="选择后自动生成详细地点" /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="详细地点信息"><el-input v-model="form.location" placeholder="选完地点后可补充更细描述（可选）" /></el-form-item></el-col>
       </el-row>
 
       <el-row>
