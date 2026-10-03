@@ -67,6 +67,7 @@ export interface ItemDTO {
   created_at: string
   updated_at: string
   user_id: number
+  claimed_by?: number      // 认领人 user_id（后端若返回，用于前端判定“我是否认领”）
   location_detail?: string
   images?: { image_url: string; sort_order: number }[]
   tags?: TagDTO[]            // 后端返回完整标签对象数组
@@ -106,6 +107,11 @@ export function setItemImages(itemID: number, images: { image_url: string; sort_
     method: 'POST',
     body: JSON.stringify({ images }),
   })
+}
+
+/** 首页“件物品正在被认真寻找”计数：GET /item/count，data 直接是数字 */
+export function getItemCount() {
+  return request<number>('/item/count')
 }
 
 // —— 举报审核（审核员专用，后端 /admin/reports，待洪烨实现）——

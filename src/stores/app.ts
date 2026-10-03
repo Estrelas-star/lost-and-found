@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
-import { login as apiLogin, logout as apiLogout, getMe } from '../api/user'
+import { login as apiLogin, logout as apiLogout, getMe, createUser, updateUser, bindQQ as bindQQApi } from '../api/user'
 import {
-  listItems, getItem, listTags, listLocations, listMyItems,
+  listItems, getItem, listTags, listLocations, listMyItems, getItemCount,
   updateItem as updateItemApi, deleteItem as deleteItemApi, closeItem as closeItemApi,
   claimItem, cancelClaim, confirmItem,
   listReports, reviewReport as reviewReportApi,
@@ -38,6 +38,7 @@ export interface Item {
   desc: string
   contact?: string
   images?: string[]
+  claimedBy?: number      // 后端认领人 user_id（若后端返回）；"我是否认领"优先以此判定，否则回退本地缓存
 }
 
 export interface Claim {
@@ -84,6 +85,10 @@ export const useAppStore = defineStore('app', () => {
     { id: 2, title: '毕业季物品集中认领活动开始啦', date: '2026-06-08', tag: '活动' }
   ])
   const items = ref<Item[]>([])
+  // —— 本地存储审计（L1）：除 jwt-token(auth) 外，前端仅以下本地状态需要关注 ——
+  //   • role：登录时由服务端同步（setRole(roleMap[user.role])），仅作未登录兜底展示，非关键决策源
+  //   • myClaimedIds：认领/撤销的【本地缓存】，仅作乐观更新；真正的"我是否认领"以服务端 claimed_by 为准（见 isClaimedByMe）
+  //   其余 favoriteItemIds/likedItemIds 等均为内存态，不落盘。
   // 我的认领：记录我认领过的物品 id（localStorage 持久化，用于"我的认领"页与撤销判断）
   const myClaimedIds = ref<number[]>(loadClaimedIds())
   function loadClaimedIds(): number[] { try { return JSON.parse(localStorage.getItem('myClaimedIds') || '[]') } catch { return [] } }
@@ -177,6 +182,7 @@ export const useAppStore = defineStore('app', () => {
       desc: it.description,
       contact: it.contact,
       images: (it.images ?? []).map((img) => img.image_url),
+      claimedBy: (it as any).claimed_by ?? undefined,
     }
   }
 
@@ -283,17 +289,50 @@ export const useAppStore = defineStore('app', () => {
   async function submitClaim(id: number) {
     await claimItem(id)
     if (!myClaimedIds.value.includes(id)) { myClaimedIds.value.push(id); saveClaimedIds() }
+    await fetchItems()   // 重新拉服务端数据，使认领状态以服务端返回为准（L1 修复：不再单纯信本地）
   }
   // 撤销认领：/item/:id/claim/cancel（1->0）
   async function cancelMyClaim(id: number) {
     await cancelClaim(id)
     myClaimedIds.value = myClaimedIds.value.filter((x) => x !== id)
     saveClaimedIds()
+    await fetchItems()   // 重新拉服务端数据，使认领状态以服务端返回为准
   }
   // 发布者确认认领：/item/:id/confirm（1->2，发放积分）
   async function confirmMyItem(id: number) { await confirmItem(id) }
   // 我的认领页数据源：公开列表中我认领过的物品（进入 claims 页时拉全量）
-  const myClaims = computed(() => remoteItems.value.filter((i) => myClaimedIds.value.includes(i.id)))
+  // “我是否认领”：优先以服务端返回的认领人(claimed_by)判定，否则回退本地缓存
+  // —— L1 修复核心：UI 不再单纯信本地，服务端有数据则一律以服务端为准 ——
+  function isClaimedByMe(item: Item): boolean {
+    const meId = authUser.value?.id
+    if (meId != null && item.claimedBy != null) return item.claimedBy === meId
+    return myClaimedIds.value.includes(item.id)
+  }
+  const myClaims = computed(() => remoteItems.value.filter((i) => isClaimedByMe(i)))
+
+  // —— 首页“件物品正在被认真寻找”计数（GET /item/count，L6）——
+  const itemCount = ref<number>(0)
+  async function fetchItemCount() {
+    try { const res = await getItemCount(); itemCount.value = res.data ?? 0 } catch { /* 忽略 */ }
+  }
+
+  // —— 注册（L3，后端 /user/create 现成）——
+  async function register(account: string, password: string, nickname: string) {
+    await createUser({ username: account, password, nickname })
+  }
+
+  // —— 用户设置（L5）：改资料 / 换头像 ——
+  async function updateMyProfile(payload: { nickname?: string; realname?: string; gender?: number; avatar?: string }) {
+    await updateUser(payload)
+    await initSession()   // 刷新本地用户信息（昵称/头像/QQ 等）
+  }
+  async function bindQQ(code: string) {
+    await bindQQApi({ code })   // 后端接口待确认（/user/bind-qq）
+  }
+  async function sendQQCode() {
+    // 后端接口待确认（疑似 POST /user/send-qq-code），先抛出以便前端给出明确提示
+    throw new Error('后端发送验证码接口待确认')
+  }
   function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '招领中' }
   function reject(id: number, reason: string) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '已驳回' }
   function updateItem(id: number, patch: Partial<Item>) {
@@ -326,5 +365,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaimedIds, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaimedIds, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser }
 })

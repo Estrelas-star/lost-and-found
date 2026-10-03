@@ -47,6 +47,16 @@ export function batchGetUsers(ids: number[]) {
   })
 }
 
+/** 绑定 QQ：POST /user/bind-qq（后端接口待确认，code 为陈松发出的验证码） */
+export function bindQQ(body: { code: string }) {
+  return request('/user/bind-qq', { method: 'POST', body: JSON.stringify(body) })
+}
+
+/** 发送 QQ 绑定验证码：POST /user/send-qq-code（后端接口待确认） */
+export function sendQQCode() {
+  return request('/user/send-qq-code', { method: 'POST' })
+}
+
 /* 管理员专用接口 */
 
 /** 改变用户角色: POST /admin/change-role */

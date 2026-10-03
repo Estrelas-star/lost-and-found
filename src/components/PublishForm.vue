@@ -4,6 +4,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAppStore, type ItemType } from '../stores/app'
 import LocationSelector from './LocationSelector.vue'
 import { createItem, setItemImages, listMyItems } from '../api/item'
+import { uploadImage } from '../api/upload'
 const store = useAppStore()
 
 // 进入发布页时拉取真实标签（后端 /tag/list），否则下拉 store.tags 一直为空 -> 显示 no data
@@ -84,7 +85,7 @@ async function submitPost() {
         if (newId == null) {
           ElMessage.warning('发布成功，但图片上传未能获取物品ID，可稍后在"我的发布"编辑补充')
         } else {
-          const urls = await Promise.all(selectedFiles.value.map(fileToDataUrl))
+          const urls = await Promise.all(selectedFiles.value.map(uploadImage))
           await setItemImages(newId, urls.map((u, i) => ({ image_url: u, sort_order: i + 1 })))
         }
       }
@@ -108,14 +109,6 @@ async function fetchNewItemId(): Promise<number | null> {
   }
 }
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
 </script>
 
 <template>

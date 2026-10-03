@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useAppStore, type Item } from '../stores/app'
+import { setItemImages } from '../api/item'
+import { uploadImage } from '../api/upload'
+import { resolveImageUrl } from '../utils/image'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps<{ item: Item | null; visible: boolean }>()
@@ -13,6 +16,8 @@ const typeLabel = ref('')
 const selectedTags = ref<string[]>([])
 const locPath = ref<number[]>([])
 const locDetail = ref('')
+const imageUrls = ref<string[]>([])   // 已存在的图片 URL
+const pendingFiles = ref<File[]>([])  // 待上传的新图片
 
 interface CascaderNode { value: number; label: string; children: CascaderNode[] }
 function buildLocTree(list: { id: number; name: string; parent_id: number }[]): CascaderNode[] {
@@ -54,9 +59,21 @@ watch(
     selectedTags.value = it.tags.filter((t) => store.tagIdByName[t] != null)
     locPath.value = pathFromId(it.locationId)
     locDetail.value = it.locationDetail || ''
+    imageUrls.value = it.images ? [...it.images] : []
+    pendingFiles.value = []
   },
   { immediate: true }
 )
+
+function onPickImage(e: Event) {
+  const input = e.target as HTMLInputElement
+  const picked = Array.from(input.files || []).filter((f) => f.type.startsWith('image/'))
+  pendingFiles.value.push(...picked)
+  input.value = ''
+}
+function removeExistingImage(idx: number) {
+  imageUrls.value.splice(idx, 1)
+}
 
 async function onSave() {
   if (!props.item) return
@@ -71,6 +88,11 @@ async function onSave() {
   }
   try {
     await store.updateMyItem(props.item.id, payload)   // POST /item/update（仅本人可操作）
+    if (pendingFiles.value.length) {
+      const newUrls = await Promise.all(pendingFiles.value.map(uploadImage))
+      const all = [...imageUrls.value, ...newUrls]
+      await setItemImages(props.item.id, all.map((u, i) => ({ image_url: u, sort_order: i + 1 })))
+    }
     ElMessage.success('已保存修改')
     emit('saved')
     emit('close')
@@ -112,6 +134,13 @@ async function onSave() {
         <span>描述</span>
         <el-input v-model="description" type="textarea" :rows="4" placeholder="物品描述、特征、拾到/丢失经过等" />
       </label>
+      <label class="ef-field">
+        <span>物品图片</span>
+        <div class="ef-imgs">
+          <div v-for="(img, idx) in imageUrls" :key="img" class="ef-img"><img :src="resolveImageUrl(img)" alt="图片" /><button type="button" class="ef-img-del" @click="removeExistingImage(idx)">×</button></div>
+          <label class="ef-upload">＋<input type="file" accept="image/*" multiple @change="onPickImage" /></label>
+        </div>
+      </label>
     </div>
     <template #footer>
       <el-button @click="emit('close')">取消</el-button>
@@ -124,4 +153,10 @@ async function onSave() {
 .edit-form { display: flex; flex-direction: column; gap: 14px; }
 .ef-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #4b5563; }
 .ef-field .req { color: #e06c75; font-style: normal; }
+.ef-imgs { display: flex; flex-wrap: wrap; gap: 10px; }
+.ef-img { position: relative; width: 84px; height: 84px; border-radius: 8px; overflow: hidden; background: #edf3ef; }
+.ef-img img { width: 100%; height: 100%; object-fit: cover; }
+.ef-img-del { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border: 0; border-radius: 50%; background: rgba(25,51,47,.75); color: #fff; font-size: 13px; line-height: 1; }
+.ef-upload { display: flex; align-items: center; justify-content: center; width: 84px; height: 84px; border: 1px dashed #c8d7cd; border-radius: 8px; color: var(--green); cursor: pointer; font-size: 22px; }
+.ef-upload input { display: none; }
 </style>
