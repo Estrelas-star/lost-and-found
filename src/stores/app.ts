@@ -28,6 +28,8 @@ export interface Item {
   title: string
   tags: string[]
   location: string
+  locationId?: number      // 后端地点链末位(叶子)的 id，编辑时回传 location_id
+  locationDetail?: string  // 详细地点信息（自由文本，对应后端的 location_detail）
   date: string
   status: ItemStatus
   author: string
@@ -164,6 +166,9 @@ export const useAppStore = defineStore('app', () => {
       location: (it.locations && it.locations.length)
         ? it.locations.map((l) => l.name).join(' · ')
         : (it.location_detail || ''),
+      // 编辑需要回传精确的叶子 location_id 与自由文本 location_detail
+      locationId: (it.locations && it.locations.length) ? it.locations[it.locations.length - 1].id : undefined,
+      locationDetail: it.location_detail || '',
       date: (it.created_at || '').slice(0, 10),
       status: it.status === 0 ? '招领中' : it.status === 1 ? '已认领' : '已关闭',
       author: meId != null && it.user_id === meId ? meName : `用户${it.user_id}`,
@@ -261,6 +266,11 @@ export const useAppStore = defineStore('app', () => {
     await updateItemApi({ id, ...payload })
     await fetchItems()
   }
+  // —— 编辑我的发布：调 POST /item/update 改本人物品，成功刷新"我的发布"列表 ——
+  async function updateMyItem(id: number, payload: { title?: string; description?: string; location_id?: number; location_detail?: string; tag_ids?: number[] }) {
+    await updateItemApi({ id, ...payload })
+    await fetchMyItems()
+  }
   async function removeRemoteItem(id: number) {
     await deleteItemApi(id)
     await fetchItems()
@@ -316,5 +326,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaimedIds, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, forceLogout, initSession }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaimedIds, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession }
 })
