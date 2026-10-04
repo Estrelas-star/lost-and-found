@@ -128,7 +128,7 @@ defineExpose({ validate, reset })
 
 <style scoped>
 .location-selector{display:flex;flex-wrap:wrap;gap:10px;width:100%}
-.location-selector .loc-col{flex:1 1 0;min-width:120px;max-width:100%}
+.location-selector .loc-col{flex:1 1 100%;width:100%;min-width:100%}
 .location-selector .loc-cascader{flex:1 1 100%;width:100%}
 @media(max-width:420px){.location-selector .loc-col{flex:1 1 100%;min-width:100%}}
 </style>
