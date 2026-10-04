@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { login as apiLogin, logout as apiLogout, getMe, createUser, updateUser, bindQQ as bindQQApi } from '../api/user'
+import { login as apiLogin, logout as apiLogout, getMe, createUser, updateUser, getQQCode, bindQQ as bindQQApi } from '../api/user'
 import {
   listItems, getItem, listTags, listLocations, listMyItems, getItemCount,
   updateItem as updateItemApi, deleteItem as deleteItemApi, closeItem as closeItemApi,
@@ -11,6 +11,11 @@ import { setAuth, clearAuth, getToken, getStoredUser } from '../utils/auth'
 import type { UserResponse } from '../api/types'
 import { createComment, listComments, likeComment } from '../api/comment'
 import type { CommentDTO } from '../api/comment'
+import {
+  getNotifications, getUnreadCount, getNotificationDetail,
+  markNotificationsRead as markReadApi, deleteNotifications as deleteApi, adminBroadcast,
+} from '../api/notification'
+import type { NotificationItem, NotificationDetail } from '../api/notification'
 
 import { defineStore } from 'pinia'
 
@@ -89,12 +94,7 @@ export const useAppStore = defineStore('app', () => {
   const items = ref<Item[]>([])
   // —— 本地存储审计（L1）：除 jwt-token(auth) 外，前端仅以下本地状态需要关注 ——
   //   • role：登录时由服务端同步（setRole(roleMap[user.role])），仅作未登录兜底展示，非关键决策源
-  //   • myClaimedIds：认领/撤销的【本地缓存】，仅作乐观更新；真正的"我是否认领"以服务端 claimed_by 为准（见 isClaimedByMe）
-  //   其余 favoriteItemIds/likedItemIds 等均为内存态，不落盘。
-  // 我的认领：记录我认领过的物品 id（localStorage 持久化，用于"我的认领"页与撤销判断）
-  const myClaimedIds = ref<number[]>(loadClaimedIds())
-  function loadClaimedIds(): number[] { try { return JSON.parse(localStorage.getItem('myClaimedIds') || '[]') } catch { return [] } }
-  function saveClaimedIds() { localStorage.setItem('myClaimedIds', JSON.stringify(myClaimedIds.value)) }
+  //   其余 favoriteItemIds/likedItemIds 等均为内存态，不落盘。 catch { return [] } }
   const favoriteItemIds = ref<number[]>([])
   const likedItemIds = ref<number[]>([])
   const comments = ref<Comment[]>([
@@ -174,6 +174,7 @@ export const useAppStore = defineStore('app', () => {
       const res = await getMe()
       authUser.value = res.data                       // 刷新昵称/角色/积分/QQ 绑定等
       setRole(roleMap[res.data.role] ?? 'student')
+      await fetchUnreadCount()                        // 拉取未读通知数
     } catch {
       forceLogout()                                   // 会话已失效，回退未登录
     }
@@ -209,7 +210,7 @@ export const useAppStore = defineStore('app', () => {
       desc: it.description,
       contact: it.contact,
       images: (it.images ?? []).map((img) => img.image_url),
-      claimedBy: (it as any).claimed_by ?? undefined,
+      claimedBy: (it as any).claim_user_id ?? (it as any).claimed_by ?? undefined,
     }
   }
 
@@ -312,28 +313,23 @@ export const useAppStore = defineStore('app', () => {
     await closeItemApi(id)
     await fetchItems()
   }
-  // 真实认领：调后端 /item/:id/claim（无审核，直接 0->1），成功后记录到 myClaimedIds
   async function submitClaim(id: number) {
     await claimItem(id)
-    if (!myClaimedIds.value.includes(id)) { myClaimedIds.value.push(id); saveClaimedIds() }
-    await fetchItems()   // 重新拉服务端数据，使认领状态以服务端返回为准（L1 修复：不再单纯信本地）
+    await fetchItems()   // 重新拉服务端数据，使认领状态以服务端返回的 claim_user_id 为准
   }
   // 撤销认领：/item/:id/claim/cancel（1->0）
   async function cancelMyClaim(id: number) {
     await cancelClaim(id)
-    myClaimedIds.value = myClaimedIds.value.filter((x) => x !== id)
-    saveClaimedIds()
-    await fetchItems()   // 重新拉服务端数据，使认领状态以服务端返回为准
+    await fetchItems()   // 重新拉服务端数据，使认领状态以服务端返回的 claim_user_id 为准
   }
   // 发布者确认认领：/item/:id/confirm（1->2，发放积分）
   async function confirmMyItem(id: number) { await confirmItem(id) }
   // 我的认领页数据源：公开列表中我认领过的物品（进入 claims 页时拉全量）
-  // “我是否认领”：优先以服务端返回的认领人(claimed_by)判定，否则回退本地缓存
-  // —— L1 修复核心：UI 不再单纯信本地，服务端有数据则一律以服务端为准 ——
+  // “我是否认领”：完全以服务端返回的 claim_user_id 为准（item.claimedBy === 当前用户id）；
+  //   不再使用浏览器 localStorage 缓存，杜绝跨账号误判（见 isClaimedByMe）
   function isClaimedByMe(item: Item): boolean {
     const meId = authUser.value?.id
-    if (meId != null && item.claimedBy != null) return item.claimedBy === meId
-    return myClaimedIds.value.includes(item.id)
+    return meId != null && item.claimedBy != null && item.claimedBy === meId
   }
   const myClaims = computed(() => remoteItems.value.filter((i) => isClaimedByMe(i)))
 
@@ -341,6 +337,39 @@ export const useAppStore = defineStore('app', () => {
   const itemCount = ref<number>(0)
   async function fetchItemCount() {
     try { const res = await getItemCount(); itemCount.value = res.data ?? 0 } catch { /* 忽略 */ }
+  }
+
+  // —— 站内通知（Notification）: 真接口 ——
+  const notifications = ref<NotificationItem[]>([])
+  const unreadCount = ref<number>(0)
+  async function fetchNotifications(params: { limit?: number; offset?: number } = {}) {
+    try {
+      const res = await getNotifications(params)
+      notifications.value = res.data ?? []
+    } catch { /* 拉取失败不影响 */ }
+  }
+  async function fetchUnreadCount() {
+    try { const res = await getUnreadCount(); unreadCount.value = res.data ?? 0 } catch { /* 忽略 */ }
+  }
+  async function markNotificationsRead(ids: number[]) {
+    if (!ids.length) return
+    try { await markReadApi(ids); await fetchUnreadCount(); await fetchNotifications() } catch { /* 忽略 */ }
+  }
+  async function removeNotifications(ids: number[]) {
+    if (!ids.length) return
+    try { await deleteApi(ids); await fetchNotifications(); await fetchUnreadCount() } catch { /* 忽略 */ }
+  }
+  // 打开通知详情（GET /notifications/:id 自动已读）并返回完整内容
+  async function openNotification(id: number): Promise<NotificationDetail | null> {
+    try {
+      const res = await getNotificationDetail(id)
+      await fetchUnreadCount()
+      await fetchNotifications()
+      return res.data
+    } catch { return null }
+  }
+  async function broadcastNotification(payload: { user_ids?: number[]; send_to_all?: boolean; type: number; title: string; content: string; related_id?: number | null }) {
+    await adminBroadcast(payload)
   }
 
   // —— 注册（L3，后端 /user/create 现成）——
@@ -353,12 +382,12 @@ export const useAppStore = defineStore('app', () => {
     await updateUser(payload)
     await initSession()   // 刷新本地用户信息（昵称/头像/QQ 等）
   }
-  async function bindQQ(code: string) {
-    await bindQQApi({ code })   // 后端接口待确认（/user/bind-qq）
+  async function bindQQ(qq: number, code: number) {
+    await bindQQApi({ qq, code })   // POST /user/qq/bind
+    await initSession()             // 刷新本地用户（qq 字段）
   }
-  async function sendQQCode() {
-    // 后端接口待确认（疑似 POST /user/send-qq-code），先抛出以便前端给出明确提示
-    throw new Error('后端发送验证码接口待确认')
+  async function sendQQCode(qq: number) {
+    await getQQCode({ qq })         // POST /user/qq/get-code
   }
   function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '招领中' }
   function reject(id: number, reason: string) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '已驳回' }
@@ -423,5 +452,5 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaimedIds, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, notifications, unreadCount, fetchNotifications, fetchUnreadCount, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
 })

@@ -47,14 +47,14 @@ export function batchGetUsers(ids: number[]) {
   })
 }
 
-/** 绑定 QQ：POST /user/bind-qq（后端接口待确认，code 为陈松发出的验证码） */
-export function bindQQ(body: { code: string }) {
-  return request('/user/bind-qq', { method: 'POST', body: JSON.stringify(body) })
+/** 申请 QQ 绑定验证码：POST /user/qq/get-code { qq: number } */
+export function getQQCode(body: { qq: number }) {
+  return request('/user/qq/get-code', { method: 'POST', body: JSON.stringify(body) })
 }
 
-/** 发送 QQ 绑定验证码：POST /user/send-qq-code（后端接口待确认） */
-export function sendQQCode() {
-  return request('/user/send-qq-code', { method: 'POST' })
+/** 提交 QQ 绑定：POST /user/qq/bind { qq: number, code: number } */
+export function bindQQ(body: { qq: number; code: number }) {
+  return request('/user/qq/bind', { method: 'POST', body: JSON.stringify(body) })
 }
 
 /* 管理员专用接口 */

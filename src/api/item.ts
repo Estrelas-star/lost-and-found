@@ -67,7 +67,7 @@ export interface ItemDTO {
   created_at: string
   updated_at: string
   user_id: number
-  claimed_by?: number      // 认领人 user_id（后端若返回，用于前端判定“我是否认领”）
+  claim_user_id?: number   // 认领人 user_id（后端 ItemResponse 字段名 claim_user_id，用于判定“我是否认领”）
   location_detail?: string
   images?: { image_url: string; sort_order: number }[]
   tags?: TagDTO[]            // 后端返回完整标签对象数组

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { renderMarkdown } from './utils/markdown'
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore, type Item, type ItemType, type Role } from './stores/app'
 import { navItems } from './navigation'
@@ -11,6 +11,8 @@ import AuditCenter from './components/AuditCenter.vue'
 import ManageItems from './components/ManageItems.vue'
 import EditItemDialog from './components/EditItemDialog.vue'
 import UserSettingsDialog from './components/UserSettingsDialog.vue'
+import NotificationBell from './components/NotificationBell.vue'
+import { getItem } from './api/item'
 import { resolveImageUrl } from './utils/image'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -143,6 +145,9 @@ onMounted(() => {
   store.fetchTags()
   store.fetchLocations()
   store.fetchItemCount()
+  store.fetchUnreadCount()
+  const notifTimer = setInterval(() => store.fetchUnreadCount(), 60000)
+  onUnmounted(() => clearInterval(notifTimer))
 })
 
 function go(key: string) {
@@ -157,6 +162,15 @@ function openItem(item: Item) {
   detailSlide.value = 0
   commentText.value = ''
   replyTarget.value = null
+}
+
+async function openItemById(id: number) {
+  try {
+    const res = await getItem(id)
+    if (res?.data) openItem(store.mapToFront(res.data))
+  } catch {
+    ElMessage.warning('未找到相关物品')
+  }
 }
 
 function closeDetailDialog() {
@@ -297,7 +311,7 @@ function submitReject() {
     </aside>
 
     <main class="main-content">
-      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><button class="icon-btn" @click="flash('暂无新的通知')">♧<i></i></button><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small"><img v-if="currentAvatar" :src="currentAvatar" alt="" /><template v-else>{{ store.currentUser.name.slice(0, 1) }}</template></span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button class="profile-menu-item" @click="openSettings">账号设置</button><button @click="handleLogout">退出登录</button></div></div></div></header>
+      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><NotificationBell @open-item="openItemById" /><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small"><img v-if="currentAvatar" :src="currentAvatar" alt="" /><template v-else>{{ store.currentUser.name.slice(0, 1) }}</template></span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button class="profile-menu-item" @click="openSettings">账号设置</button><button @click="handleLogout">退出登录</button></div></div></div></header>
       <div class="page-wrap">
         <AuditCenter v-if="store.activeRoute === 'audit'" />
         <ManageItems v-if="store.activeRoute === 'manage'" />

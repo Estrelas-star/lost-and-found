@@ -11,29 +11,32 @@ const store = useAppStore()
 
 const me = computed(() => store.currentUser)
 const boundQQ = computed(() => (store as any).authUser?.qq || '')
+const isBoundQQ = computed(() => !!(store.authUser && store.authUser.qq))
 
 // —— 绑定 QQ ——
 const qqGroup = '1056181967'
 const qqCode = ref('')
+const qq = ref('')
 const sendingCode = ref(false)
 const binding = ref(false)
 async function sendQQCode() {
+  if (!qq.value.trim()) { ElMessage.warning('请输入 QQ 号'); return }
   sendingCode.value = true
   try {
-    // 后端接口待确认（疑似 POST /user/send-qq-code），失败仅提示
-    await (store as any).sendQQCode?.()
+    await store.sendQQCode(Number(qq.value.trim()))
     ElMessage.success('验证码已发送到 QQ 群，请查收陈松发出的验证码')
   } catch (e) {
-    ElMessage.warning('发送验证码失败：后端接口待确认（/user/send-qq-code）')
+    ElMessage.warning('发送验证码失败：' + ((e as Error).message || '未知错误'))
   } finally {
     sendingCode.value = false
   }
 }
 async function confirmBindQQ() {
+  if (!qq.value.trim()) { ElMessage.warning('请输入 QQ 号'); return }
   if (!qqCode.value.trim()) { ElMessage.warning('请输入收到的验证码'); return }
   binding.value = true
   try {
-    await store.bindQQ(qqCode.value.trim())
+    await store.bindQQ(Number(qq.value.trim()), Number(qqCode.value.trim()))
     await store.initSession() // 刷新绑定的 QQ
     ElMessage.success('QQ 绑定成功')
     qqCode.value = ''
@@ -98,15 +101,21 @@ const dialogVisible = computed({
     <div class="us-section">
       <h3>绑定 QQ</h3>
       <p class="us-tip">认领物品需要绑定 QQ。请先加入 QQ 群 <b>{{ qqGroup }}</b>，再获取验证码完成绑定。</p>
-      <div class="us-row">
-        <span class="us-current">当前绑定：{{ boundQQ || '未绑定' }}</span>
-        <a class="us-link" :href="`https://qm.qq.com/q/${qqGroup}`" target="_blank" rel="noopener">加入 QQ 群</a>
+      <div v-if="!isBoundQQ">
+        <div class="us-row">
+          <span class="us-current">当前绑定：{{ boundQQ || '未绑定' }}</span>
+          <a class="us-link" :href="`https://qm.qq.com/q/${qqGroup}`" target="_blank" rel="noopener">加入 QQ 群</a>
+        </div>
+        <div class="us-row">
+          <el-input v-model="qq" placeholder="输入你的 QQ 号" style="width:180px" />
+          <el-button size="small" :loading="sendingCode" @click="sendQQCode">发送验证码</el-button>
+        </div>
+        <div class="us-row">
+          <el-input v-model="qqCode" placeholder="输入陈松发来的验证码" style="width:200px" />
+          <el-button size="small" type="primary" :loading="binding" @click="confirmBindQQ">确认绑定</el-button>
+        </div>
       </div>
-      <div class="us-row">
-        <el-button size="small" :loading="sendingCode" @click="sendQQCode">发送验证码</el-button>
-        <el-input v-model="qqCode" placeholder="输入陈松发来的验证码" style="width:200px" />
-        <el-button size="small" type="primary" :loading="binding" @click="confirmBindQQ">确认绑定</el-button>
-      </div>
+      <p v-else class="us-bound">你已绑定 QQ：<b>{{ boundQQ }}</b>，无需重复绑定。</p>
     </div>
 
     <el-divider />
@@ -151,6 +160,7 @@ const dialogVisible = computed({
 .us-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .us-current { font-size: 13px; color: #4b5563; }
 .us-link { color: var(--green); font-size: 13px; }
+.us-bound { margin: 0; font-size: 13px; color: #4b5563; }
 .us-form { display: flex; flex-direction: column; gap: 12px; max-width: 320px; }
 .us-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #4b5563; }
 .us-form input { border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px; outline: 0; font-size: 13px; }
