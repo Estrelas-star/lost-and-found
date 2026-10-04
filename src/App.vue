@@ -315,7 +315,7 @@ function submitReject() {
               </div>
               <div class="filter-box">
                 <span class="filter-label">类型</span>
-                <el-select v-model="filter" placeholder="全部">
+                <el-select v-model="filter" filterable placeholder="全部">
                   <el-option label="全部" value="全部" />
                   <el-option label="寻物" value="lost" />
                   <el-option label="招领" value="found" />
@@ -323,15 +323,15 @@ function submitReject() {
               </div>
               <div class="filter-box">
                 <span class="filter-label">分类</span>
-                <el-select v-model="categoryFilter" placeholder="全部">
+                <el-select v-model="categoryFilter" filterable placeholder="全部">
                   <el-option label="全部" value="全部" />
                   <el-option v-for="category in categoryOptions" :key="category" :label="category" :value="category" />
                 </el-select>
               </div>
               <div class="filter-box">
                 <span class="filter-label">地点</span>
-                <el-cascader v-if="usingRealLocations" v-model="locationPath" :options="locationCascaderOptions" :props="{ expandTrigger: 'hover' }" placeholder="全部地点" clearable class="filter-cascader" />
-                <el-select v-else v-model="locationFilter" placeholder="全部">
+                <el-cascader v-if="usingRealLocations" v-model="locationPath" :options="locationCascaderOptions" :props="{ expandTrigger: 'hover' }" placeholder="全部地点" clearable filterable class="filter-cascader" />
+                <el-select v-else v-model="locationFilter" filterable placeholder="全部">
                   <el-option label="全部" value="全部" />
                   <el-option v-for="location in locationOptions.filter((item) => item !== '全部')" :key="location" :label="location" :value="location" />
                 </el-select>
