@@ -5,6 +5,28 @@ import { setItemImages } from '../api/item'
 import { uploadImage } from '../api/upload'
 import { resolveImageUrl } from '../utils/image'
 import { ElMessage } from 'element-plus'
+const descRef = ref<any>(null)
+const descDragOver = ref(false)
+function insertDescAtCursor(snippet: string) {
+  const ta = descRef.value?.textarea as HTMLTextAreaElement | undefined
+  const pos = ta ? ta.selectionStart : description.value.length
+  const cur = description.value
+  description.value = cur.slice(0, pos) + snippet + cur.slice(pos)
+}
+async function onDescDrop(e: DragEvent) {
+  e.preventDefault()
+  descDragOver.value = false
+  const files = Array.from(e.dataTransfer?.files || []).filter((f) => f.type.startsWith('image/'))
+  for (const f of files) {
+    try {
+      const url = await uploadImage(f)
+      insertDescAtCursor(`\n![图片](${url})\n`)
+      ElMessage.success('图片已插入描述')
+    } catch {
+      ElMessage.error('图片上传失败，请重试')
+    }
+  }
+}
 
 const props = defineProps<{ item: Item | null; visible: boolean }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
@@ -132,7 +154,9 @@ async function onSave() {
       </label>
       <label class="ef-field">
         <span>描述</span>
-        <el-input v-model="description" type="textarea" :rows="4" placeholder="物品描述、特征、拾到/丢失经过等" />
+        <div class="desc-dropzone" :class="{ 'drag-over': descDragOver }" @dragover.prevent="descDragOver = true" @dragleave.prevent="descDragOver = false" @drop="onDescDrop">
+          <el-input ref="descRef" v-model="description" type="textarea" :rows="4" placeholder="支持 Markdown：标题、**加粗**、列表，也可把图片直接拖进此框" />
+        </div>
       </label>
       <label class="ef-field">
         <span>物品图片</span>
@@ -159,4 +183,6 @@ async function onSave() {
 .ef-img-del { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border: 0; border-radius: 50%; background: rgba(25,51,47,.75); color: #fff; font-size: 13px; line-height: 1; }
 .ef-upload { display: flex; align-items: center; justify-content: center; width: 84px; height: 84px; border: 1px dashed #c8d7cd; border-radius: 8px; color: var(--green); cursor: pointer; font-size: 22px; }
 .ef-upload input { display: none; }
+.desc-dropzone{padding:4px;border-radius:8px;transition:outline .15s}
+.desc-dropzone.drag-over{outline:2px dashed var(--green);background:#f0f8f3}
 </style>
