@@ -15,7 +15,7 @@
 - UI 组件：Element Plus
 - 页面交互：Vue 3 Composition API、`<script setup>`、响应式数据
 - 样式方案：全局 `src/styles.css` + 组件 scoped 样式
-- 当前数据：Pinia 内存 Mock 数据，刷新页面恢复初始
+- 当前数据：物品等 Mock 数据保存在 Pinia 内存；用户与认领申请持久化到 localStorage
 - 当前后端：尚未接入真实 API、数据库与真实认证；登录使用本地 Mock Token
 
 ## AI 辅助开发方式
@@ -115,7 +115,7 @@ npm run dev
 ## 10. 当前限制
 
 - 登录基于本地 Mock 用户表 + Mock Token，不是真实鉴权（账号密码存于前端 localStorage，仅为演示）。
-- 数据在 Pinia 内存，用户列表持久化到 `localStorage`，刷新后恢复。
+- 大部分业务数据在 Pinia 内存；用户列表与认领申请持久化到 `localStorage`，刷新后恢复。
 - 图片本地预览，未上传服务器。
 - 管理员对认领申请的同意/拒绝/完成归还操作尚未接入。
 - 数据大屏使用 CSS 占位图表，ECharts 尚未接入。

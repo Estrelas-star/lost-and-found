@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, watch } from 'vue'
 
 interface CampusOption { label: string, value: string }
 interface PlaceDef {
@@ -80,7 +80,31 @@ function reset() {
   state.detail = ''
 }
 
-defineExpose({ validate, reset })
+async function setLocation(value: string) {
+  reset()
+  const parts = value.split(' · ')
+  const campus = campusOptions.find((option) => option.label === parts[0])
+  if (!campus || parts.length < 3) return
+  state.campus = campus.value
+  await nextTick()
+  state.place = parts[1]
+  await nextTick()
+  if (showBuildingNo.value) {
+    state.buildingNo = parts[2]
+    await nextTick()
+    state.floor = parts[3] ?? ''
+    state.detail = parts.slice(4).join(' · ')
+    return
+  }
+  if (showFloor.value) {
+    state.floor = parts[2]
+    state.detail = parts.slice(3).join(' · ')
+    return
+  }
+  state.detail = parts.slice(2).join(' · ')
+}
+
+defineExpose({ validate, reset, setLocation })
 </script>
 
 <template>

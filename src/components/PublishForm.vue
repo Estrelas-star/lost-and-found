@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAppStore, type ItemType } from '../stores/app'
 import LocationSelector from './LocationSelector.vue'
@@ -15,6 +15,21 @@ const rules: FormRules = {
   title: [{ required: true, min: 2, message: '请输入至少 2 个字符的物品名称', trigger: 'blur' }],
   contact: [{ required: true, min: 5, message: '请输入有效联系方式', trigger: 'blur' }]
 }
+
+async function loadItemForEdit(itemId: number) {
+  const item = store.items.find((entry) => entry.id === itemId)
+  if (!item) {
+    store.clearEditingItem()
+    return
+  }
+  form.value = { type: item.type, title: item.title, tags: [...item.tags], location: item.location, contact: item.contact ?? '', desc: item.desc, images: [...(item.images ?? [])] }
+  await nextTick()
+  await locationSelectorRef.value?.setLocation(item.location)
+}
+
+watch(() => store.editingItemId, (itemId) => {
+  if (itemId !== null) void loadItemForEdit(itemId)
+}, { immediate: true })
 
 function handleUpload(event: Event) {
   const input = event.target as HTMLInputElement
@@ -57,10 +72,22 @@ function submitPost() {
       ElMessage.error('请先完善表单信息')
       return
     }
-    store.publish({ ...form.value, icon: form.value.type === 'lost' ? '◌' : '◉', color: 'blue', status: '待审核' })
+    const editingItemId = store.editingItemId
+    if (editingItemId !== null) {
+      store.updateItem(editingItemId, { ...form.value, icon: form.value.type === 'lost' ? '◌' : '◉', date: '刚刚', status: '待审核' })
+      store.clearEditingItem()
+      ElMessage.success('修改已提交，等待重新审核')
+    } else {
+      store.publish({ ...form.value, icon: form.value.type === 'lost' ? '◌' : '◉', color: 'blue', status: '待审核' })
+      ElMessage.success('信息已提交，等待管理员审核')
+    }
     resetForm()
-    ElMessage.success('信息已提交，等待管理员审核')
   })
+}
+
+function cancelEdit() {
+  store.clearEditingItem()
+  resetForm()
 }
 </script>
 
@@ -126,11 +153,14 @@ function submitPost() {
         </el-col>
       </el-row>
 
-      <el-button type="primary" native-type="submit" class="publish-submit">提交审核</el-button>
+      <el-button v-if="store.editingItemId !== null" native-type="button" class="publish-submit publish-cancel" @click="cancelEdit">取消编辑</el-button>
+      <el-button type="primary" native-type="submit" class="publish-submit">{{ store.editingItemId !== null ? '重新提交审核' : '提交审核' }}</el-button>
     </el-form>
   </section>
 </template>
 
 <style scoped>
 .publish-page{max-width:920px;margin:0 auto}.publish-intro{margin-bottom:24px}.publish-intro h1{margin:12px 0 8px;font-size:32px}.publish-intro p{margin:0;color:var(--muted)}.publish-form{padding:26px;background:#fff;border:1px solid var(--line);border-radius:14px}.publish-control,.publish-form .el-input,.publish-form .el-textarea,.publish-form .el-radio-group{width:100%}.publish-type{display:flex}.publish-type .el-radio-button{flex:1}.publish-type :deep(.el-radio-button__inner){width:100%}.upload-box{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:90px;border:1px dashed #c8d7cd;border-radius:10px;background:#fbfdfb;color:var(--green);cursor:pointer}.upload-box:hover{background:#f0f8f3}.upload-box input{display:none}.upload-box small{color:var(--muted);font-weight:400}.preview-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}.preview-item{position:relative;width:120px;height:120px;overflow:hidden;border-radius:10px}.preview-image{width:120px;height:120px}.remove-image{position:absolute;top:6px;right:6px;width:23px;height:23px;border:0;border-radius:50%;background:#19332fcc;color:#fff;font-size:16px;cursor:pointer}.publish-submit{width:100%;margin-top:8px}@media(max-width:700px){.publish-page{width:100%}.publish-form{padding:18px}.publish-form :deep(.el-col){max-width:100%;flex:0 0 100%}}
+.publish-type :deep(.el-radio-button__inner:hover){color:var(--green);border-color:var(--green)}.publish-type :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner){color:#fff;background:var(--green);border-color:var(--green);box-shadow:-1px 0 0 0 var(--green)}.publish-type :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner:hover){background:#096655;border-color:#096655}.publish-type :deep(.el-radio-button__inner:active){color:#fff;background:#075548;border-color:#075548}.publish-type :deep(.el-radio-button__original-radio:focus-visible + .el-radio-button__inner){outline:2px solid #0e7c6b66;outline-offset:2px}.publish-form :deep(.publish-submit.el-button--primary){--el-button-bg-color:var(--green);--el-button-border-color:var(--green);--el-button-hover-bg-color:#096655;--el-button-hover-border-color:#096655;--el-button-active-bg-color:#075548;--el-button-active-border-color:#075548}
+.publish-type :deep(.el-radio-button){--el-radio-button-checked-bg-color:var(--green);--el-radio-button-checked-border-color:var(--green);--el-radio-button-checked-text-color:#fff}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner:hover){background:#096655;border-color:#096655}
 </style>

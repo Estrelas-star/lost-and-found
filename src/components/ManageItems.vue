@@ -13,7 +13,7 @@ const editVisible = ref(false)
 const editId = ref<number | null>(null)
 const editForm = ref({ title: '', tags: [] as string[], location: '', desc: '' })
 const tagOptions = ['数码', '证件', '日用', '服饰', '书籍', '其他']
-const statusOptions: ItemStatus[] = ['招领中', '待认领', '已认领', '已关闭']
+const statusOptions: ItemStatus[] = ['待审核', '招领中', '待认领', '已认领', '已关闭', '已撤回']
 const filteredItems = computed(() => store.items.filter((item) => {
   const keyword = search.value.trim().toLowerCase()
   return (type.value === '全部' || item.type === type.value) && (status.value === '全部' || item.status === status.value) && item.title.toLowerCase().includes(keyword)

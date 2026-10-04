@@ -1,7 +1,8 @@
 <script setup lang="ts">  //页面总框架
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Bell } from '@element-plus/icons-vue'
 import { useAppStore, type Item, type ItemType, type Role, type User, ROLE_LABELS } from './stores/app'
 import { navItems } from './navigation'
 import MetricCard from './components/MetricCard.vue'
@@ -21,11 +22,14 @@ const timeFilter = ref('全部')
 const currentPage = ref(1)
 const pageSize = ref(6)
 const selectedItem = ref<Item | null>(null)
+const selectedCluesItem = ref<Item | null>(null)
+const itemCluesDialogVisible = ref(false)
 const detailDialogVisible = ref(false)
 const detailSlide = ref(0)
 const likedItems = ref<number[]>([])
 const notice = ref('')
 const profileMenuOpen = ref(false)
+const notificationPanelOpen = ref(false)
 const form = ref({ type: 'lost' as ItemType, title: '', category: '', tags: [] as string[], location: '', contact: '', desc: '', images: [] as string[] })
 const errors = ref<Record<string, string>>({})
 const locationTree = {
@@ -53,6 +57,7 @@ const categoryOptions = ['数码', '证件', '日用', '服饰', '书籍', '其�
 const locationOptions = computed(() => ['全部', ...Array.from(new Set(store.items.map((item) => item.location.split('·')[0]?.trim()).filter(Boolean)))])
 const timeOptions = ['全部', '近3天', '近7天', '近30天']
 const filteredItems = computed(() => store.items.filter((item) => {
+  if (item.status === '已撤回' || item.status === '已找回') return false
   const matchesType = filter.value === '全部' || item.type === filter.value
   const matchesCategory = categoryFilter.value === '全部' || item.tags.includes(categoryFilter.value)
   const matchesLocation = locationFilter.value === '全部' || item.location.includes(locationFilter.value)
@@ -87,6 +92,16 @@ const commentText = ref('')
 const replyTarget = ref<{ id: number, author: string } | null>(null)
 const detailComments = computed(() => selectedItem.value ? store.comments.filter((comment) => comment.itemId === selectedItem.value?.id) : [])
 const myItems = computed(() => store.items.filter((item) => item.author === store.currentUser.name))
+const selectedItemClues = computed(() => selectedCluesItem.value
+  ? store.clues.filter((clue) => clue.itemId === selectedCluesItem.value?.id && clue.ownerId === selectedCluesItem.value?.ownerId)
+  : [])
+const visibleClaims = computed(() => store.role === 'student'
+  ? store.claims.filter((claim) => claim.applicantId === store.currentUser.account)
+  : store.claims)
+const currentNotifications = computed(() => store.notifications
+  .filter((notification) => notification.recipientId === store.account || notification.recipientName === store.currentUser.name)
+  .sort((first, second) => second.id - first.id))
+const unreadNotificationCount = computed(() => currentNotifications.value.filter((notification) => !notification.read).length)
 const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
 const auditStatusFilter = ref<'全部' | '待审核'>('全部')
 const auditTypeFilter = ref<'全部' | ItemType>('全部')
@@ -109,6 +124,9 @@ const areaOptions = computed(() => (locationSelections.value.campus && locationS
 
 watch([filter, categoryFilter, locationFilter, timeFilter, search], () => {
   currentPage.value = 1
+})
+watch(selectedItem, (item) => {
+  if (item) detailDialogVisible.value = true
 })
 watch([auditStatusFilter, auditTypeFilter, auditSearch], () => { auditPage.value = 1 })
 
@@ -143,7 +161,12 @@ watch(() => locationSelections.value.area, () => {
 
 function go(key: string) {
   selectedItem.value = null
+  notificationPanelOpen.value = false
   router.push({ name: key })
+}
+
+function toggleNotificationPanel() {
+  notificationPanelOpen.value = !notificationPanelOpen.value
 }
 
 function openItem(item: Item) {
@@ -157,6 +180,49 @@ function openItem(item: Item) {
 function closeDetailDialog() {
   detailDialogVisible.value = false
   selectedItem.value = null
+}
+
+function editItem(item: Item) {
+  closeDetailDialog()
+  store.beginEditItem(item.id)
+  router.push({ name: 'publish' })
+}
+
+function openItemClues(item: Item) {
+  store.markItemCluesRead(item.id)
+  selectedCluesItem.value = item
+  itemCluesDialogVisible.value = true
+}
+
+function onItemCluesDialogClosed() {
+  if (selectedCluesItem.value) store.markItemCluesRead(selectedCluesItem.value.id)
+  selectedCluesItem.value = null
+}
+
+async function confirmRecovered(item: Item) {
+  try {
+    await ElMessageBox.confirm('确认该物品已被找回或认领吗？确认后该物品将停止展示，且不再接受新线索。', '确认找回', {
+      type: 'warning',
+      confirmButtonText: '确认找回',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+  const ok = store.confirmRecovered(item.id)
+  if (ok) {
+    ElMessage.success('已确认找回，该物品已停止展示')
+  }
+}
+
+async function openNotification(notification: (typeof store.notifications)[number]) {
+  store.markNotificationsRead([notification.id])
+  notificationPanelOpen.value = false
+  if (notification.kind !== 'clue' || notification.itemId === undefined) return
+  const item = store.items.find((entry) => entry.id === notification.itemId)
+  if (!item) return
+  if (store.activeRoute !== 'posts') await router.push({ name: 'posts' })
+  openItemClues(item)
 }
 
 function sendComment() {
@@ -347,7 +413,7 @@ function toggleDisabled(user: User) {
     </aside>
 
     <main class="main-content">
-      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><button class="icon-btn" @click="flash('暂无新的通知')">♧<i></i></button><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small">{{ store.currentUser.name.slice(0, 1) }}</span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button @click="handleLogout">退出登录</button></div></div></div></header>
+      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><div class="notification-wrap"><button class="icon-btn notification-trigger" aria-label="消息通知" :aria-expanded="notificationPanelOpen" @click="toggleNotificationPanel"><Bell class="notification-icon" aria-hidden="true"/><span v-if="unreadNotificationCount" class="notification-badge">{{ unreadNotificationCount }}</span></button><section v-if="notificationPanelOpen" class="notification-panel" aria-label="消息通知"><div class="notification-panel-heading"><strong>消息通知</strong><button type="button" aria-label="关闭通知" @click="notificationPanelOpen = false">×</button></div><div v-if="currentNotifications.length" class="notification-list"><article v-for="notification in currentNotifications" :key="notification.id" class="notification-item" :class="{ 'notification-unread': !notification.read }" role="button" tabindex="0" @click="openNotification(notification)" @keydown.enter="openNotification(notification)"><p>{{ notification.message }}</p><time>{{ notification.createdAt }}</time></article></div><el-empty v-else description="暂无系统通知" :image-size="64" /></section></div><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small">{{ store.currentUser.name.slice(0, 1) }}</span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button @click="handleLogout">退出登录</button></div></div></div></header>
       <div class="page-wrap">
         <AuditCenter v-if="store.activeRoute === 'audit'" />
         <ManageItems v-if="store.activeRoute === 'manage'" />
@@ -417,7 +483,18 @@ function toggleDisabled(user: User) {
 
         <section v-else-if="false" class="page-section narrow"></section>
 
-        <section v-else-if="store.activeRoute === 'posts' || store.activeRoute === 'claims'" class="page-section"><div class="section-intro"><span class="eyebrow">PERSONAL SPACE</span><h1>{{ pageTitle }}</h1><p>追踪你的每一次发布与认领进度。</p></div><div class="table-panel"><div v-if="store.activeRoute === 'posts'" v-for="item in myItems" :key="item.id" class="table-row"><div class="mini-visual" :class="item.color">{{ item.icon }}</div><div class="row-main"><strong>{{ item.title }}</strong><small>{{ item.location }} · {{ item.date }}</small></div><span class="status-pill">{{ item.status }}</span><button class="text-btn" @click="selectedItem = item">查看详情</button></div><div v-else v-for="claimItem in store.claims" :key="claimItem.id" class="table-row"><div class="mini-visual blue">♡</div><div class="row-main"><strong>{{ claimItem.item }}</strong><small>{{ claimItem.date }} · 申请人：{{ claimItem.applicant }}</small></div><span class="status-pill">{{ claimItem.status }}</span></div><div v-if="(store.activeRoute === 'posts' ? myItems : store.claims).length === 0" class="empty-state">这里还没有记录</div></div></section>
+        <section v-else-if="store.activeRoute === 'posts' || store.activeRoute === 'claims'" class="page-section">
+          <div class="section-intro"><span class="eyebrow">PERSONAL SPACE</span><h1>{{ pageTitle }}</h1><p>追踪你的每一次发布与认领进度。</p></div>
+          <div class="table-panel">
+            <template v-if="store.activeRoute === 'posts'">
+              <div v-for="item in myItems" :key="item.id" class="table-row"><div class="mini-visual" :class="item.color">{{ item.icon }}</div><div class="row-main"><strong>{{ item.title }}</strong><small>{{ item.location }} · {{ item.date }}</small></div><span class="status-pill" :class="{ 'status-pill-withdrawn': item.status === '已撤回', 'status-pill-recovered': item.status === '已找回' }">{{ item.status }}</span><button class="text-btn" @click="openItem(item)">查看详情</button><button v-if="item.status === '待审核' || item.status === '已撤回'" class="text-btn" @click="editItem(item)">{{ item.status === '已撤回' ? '重新发布' : '编辑' }}</button><button v-if="item.type === 'lost' && (item.status === '招领中' || item.status === '待认领')" class="text-btn confirm-recovered-btn" @click="confirmRecovered(item)">确认找回</button></div>
+            </template>
+            <template v-else>
+              <div v-for="claimItem in visibleClaims" :key="claimItem.id" class="table-row"><div class="mini-visual blue">♡</div><div class="row-main"><strong>{{ claimItem.item }}</strong><small>{{ claimItem.date }} · 申请人：{{ claimItem.applicant }}</small><small v-if="claimItem.rejectionReason" class="claim-rejection-reason">驳回原因：{{ claimItem.rejectionReason }}</small></div><span class="status-pill">{{ claimItem.status }}</span></div>
+            </template>
+            <div v-if="(store.activeRoute === 'posts' ? myItems : visibleClaims).length === 0" class="empty-state">这里还没有记录</div>
+          </div>
+        </section>
 
         <section v-else-if="store.activeRoute === 'audit'" class="page-section audit-page"><div class="section-intro"><span class="eyebrow">OPERATIONS</span><h1>审核中心</h1><p>集中处理新提交的失物招领信息。</p></div><div class="metrics"><MetricCard label="待处理审核" :value="pendingItems.length" trend="需要你的判断" tone="mint"/><MetricCard label="本周已处理" value="32" trend="较上周 +12%" tone="yellow"/><MetricCard label="当前筛选结果" :value="auditItems.length" trend="实时更新" tone="blue"/></div><div class="audit-toolbar"><el-input v-model="auditSearch" clearable placeholder="搜索物品名称、发布者或地点" class="audit-search"/><el-select v-model="auditStatusFilter" placeholder="按状态"><el-option label="全部状态" value="全部"/><el-option label="待审核" value="待审核"/></el-select><el-select v-model="auditTypeFilter" placeholder="按类型"><el-option label="全部类型" value="全部"/><el-option label="寻物" value="lost"/><el-option label="招领" value="found"/></el-select></div><div class="audit-table-wrap"><el-table :data="auditItems" stripe empty-text="暂无待审核信息"><el-table-column label="图片" width="82"><template #default="{ row }"><div class="audit-thumb" :class="row.color"><img v-if="row.images?.[0]" :src="row.images[0]" alt="物品图片"/><span v-else>{{ row.icon }}</span></div></template></el-table-column><el-table-column prop="title" label="物品名称" min-width="170"/><el-table-column label="分类" min-width="130"><template #default="{ row }"><div class="audit-tags"><el-tag v-for="tag in row.tags" :key="tag" size="small">{{ tag }}</el-tag></div></template></el-table-column><el-table-column prop="author" label="发布者" min-width="100"/><el-table-column prop="date" label="发布时间" min-width="100"/><el-table-column label="当前状态" min-width="100"><template #default="{ row }"><el-tag type="warning">{{ row.status }}</el-tag></template></el-table-column><el-table-column label="操作" fixed="right" width="160"><template #default="{ row }"><el-button type="success" link @click="store.approve(row.id); flash('已通过审核')">通过</el-button><el-button type="danger" link @click="flash('驳回功能下一步接入')">驳回</el-button></template></el-table-column></el-table></div></section>
 
@@ -428,7 +505,18 @@ function toggleDisabled(user: User) {
         <section v-else-if="store.activeRoute === 'notices'" class="page-section"><div class="section-intro"><span class="eyebrow">SYSTEM SETTINGS</span><h1>{{ pageTitle }}</h1><p>让重要消息抵达每一位同学。</p></div><div class="table-panel"><div v-for="row in store.notices" :key="row.id || row.title" class="table-row"><div class="mini-visual mint">✦</div><div class="row-main"><strong>{{ row.title }}</strong><small>{{ row.date }} · 公告内容管理</small></div><span class="status-pill">{{ row.tag }}</span><button class="text-btn" @click="flash('编辑功能已打开')">编辑</button></div></div></section>
       </div>
     </main>
-    <DetailDialog :item="selectedItem" :visible="detailDialogVisible" @close="closeDetailDialog" />
+    <el-dialog v-model="itemCluesDialogVisible" :title="`${selectedCluesItem?.title ?? ''} · 收到的线索`" width="min(560px, 94vw)" @closed="onItemCluesDialogClosed">
+      <div v-if="selectedItemClues.length" class="owner-claim-list">
+        <article v-for="clue in selectedItemClues" :key="clue.id" class="owner-claim-item">
+          <div class="owner-claim-heading"><strong>{{ clue.reporter }}</strong><time>{{ clue.date }}</time></div>
+          <p>{{ clue.description }}</p>
+          <small>联系方式：{{ clue.contact }}</small>
+          <div v-if="clue.images.length" class="clue-evidence-gallery"><el-image v-for="(image, index) in clue.images" :key="image" class="clue-evidence-image" :src="image" :preview-src-list="clue.images" :initial-index="index" fit="contain" preview-teleported alt="线索照片" /></div>
+        </article>
+      </div>
+      <el-empty v-else description="暂时没有线索" :image-size="72" />
+    </el-dialog>
+    <DetailDialog :item="selectedItem" :visible="detailDialogVisible" :is-owner="store.activeRoute === 'posts'" @close="closeDetailDialog" @edit="editItem" />
     <div v-if="selectedItem" class="modal-backdrop" @click.self="selectedItem = null"><div class="detail-modal detail-modal-rich"><div class="detail-modal-actions"><button class="modal-action" @click="flash('举报信息已提交')">⚑ 举报</button><button class="modal-close" @click="selectedItem = null">×</button></div><div class="detail-gallery"><el-carousel v-if="detailImages.length" v-model="detailSlide" height="250px" arrow="always" indicator-position="outside"><el-carousel-item v-for="image in detailImages" :key="image"><img :src="image" alt="物品照片" /></el-carousel-item></el-carousel><div v-else class="detail-art" :class="selectedItem.color"><span>{{ selectedItem.icon }}</span><small>暂无照片</small></div></div><div class="detail-content"><span class="eyebrow">{{ selectedItem.type === 'lost' ? '寻物信息' : '招领信息' }} · {{ selectedItem.date }}</span><h2>{{ selectedItem.title }}</h2><div class="detail-tags"><el-tag v-for="tag in selectedItem.tags" :key="tag" effect="light">{{ tag }}</el-tag></div><p>{{ selectedItem.desc }}</p><div class="detail-lines"><span>⌖ {{ selectedItem.location }}</span><span>◷ {{ selectedItem.date }}</span><span>发布人：{{ selectedItem.author }}</span></div><div class="detail-stats"><span>◉ {{ detailViews }} 浏览</span><button type="button" :class="{ active: likedItems.includes(selectedItem.id) }" @click="toggleLike">♡ {{ detailLikes }} 点赞</button><button type="button" class="favorite-stat" :class="{ active: store.favoriteItemIds.includes(selectedItem.id) }" @click="toggleSave"><span>{{ store.favoriteItemIds.includes(selectedItem.id) ? '♥' : '♡' }}</span> {{ detailSaves }} 收藏</button></div><button v-if="store.role === 'student' && ['招领中', '待认领'].includes(selectedItem.status)" class="primary-btn full-btn" @click="claim(selectedItem)">申请认领</button><section class="comments-section"><div class="comments-heading"><h3>评论区</h3><span>{{ detailComments.length }} 条评论</span></div><div v-if="replyTarget" class="replying-to">正在回复 @{{ replyTarget.author }}<button type="button" @click="replyTarget = null">取消</button></div><div class="comment-composer"><el-input v-model="commentText" type="textarea" :rows="2" :placeholder="replyTarget ? `回复 @${replyTarget.author}` : '说说你的看法...'" maxlength="200" show-word-limit /><button type="button" class="send-comment" aria-label="发送评论" @click="sendComment">➤</button></div><div class="comment-list"><article v-for="comment in detailComments" :key="comment.id" class="comment-item" :class="{ 'comment-reply': comment.parentId }"><div class="comment-avatar">{{ comment.avatar }}</div><div class="comment-body"><div class="comment-meta"><strong>{{ comment.author }}</strong><time>{{ comment.date }}</time></div><p v-if="comment.replyTo" class="reply-label">回复 @{{ comment.replyTo }}</p><p class="comment-text">{{ comment.content }}</p><div class="comment-actions"><button type="button" @click="replyTarget = { id: comment.id, author: comment.author }">回复</button><button type="button" :class="{ active: comment.liked }" @click="store.toggleCommentLike(comment.id)">♡ {{ comment.likes }}</button></div></div></article><el-empty v-if="!detailComments.length" description="还没有评论，来留下第一条吧" :image-size="70" /></div></section></div></div></div>
     <div v-if="notice" class="toast">✓ {{ notice }}</div>
     <el-dialog v-model="roleChangeDialogVisible" title="修改角色" width="420px" align-center>
