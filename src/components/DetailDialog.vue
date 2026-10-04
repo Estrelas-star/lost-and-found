@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore, type Item } from '../stores/app'
 import { resolveImageUrl } from '../utils/image'
@@ -28,14 +28,16 @@ const dialogVisible = computed({
 })
 const canClaim = computed(() => !!props.item && props.item.status === '招领中')
 
-function sendComment() {
+onMounted(() => { if (props.item) store.fetchComments(props.item.id) })
+
+async function sendComment() {
   const content = commentText.value.trim()
   if (!props.item) return
   if (!content) {
     ElMessage.warning('请输入评论内容')
     return
   }
-  store.addComment({ itemId: props.item.id, author: store.currentUser.name, avatar: store.currentUser.name.slice(0, 1), content, parentId: replyTarget.value?.id, replyTo: replyTarget.value?.author })
+  await store.addComment({ itemId: props.item.id, author: store.currentUser.name, avatar: store.currentUser.name.slice(0, 1), content, parentId: replyTarget.value?.id, replyTo: replyTarget.value?.author })
   commentText.value = ''
   replyTarget.value = null
   ElMessage.success('评论已发布')

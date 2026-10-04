@@ -152,6 +152,7 @@ function go(key: string) {
 
 function openItem(item: Item) {
   selectedItem.value = item
+  store.fetchComments(item.id)
   detailDialogVisible.value = true
   detailSlide.value = 0
   commentText.value = ''
@@ -163,10 +164,10 @@ function closeDetailDialog() {
   selectedItem.value = null
 }
 
-function sendComment() {
+async function sendComment() {
   const content = commentText.value.trim()
   if (!selectedItem.value || !content) return
-  store.addComment({ itemId: selectedItem.value.id, author: store.currentUser.name, avatar: store.currentUser.name.slice(0, 1), content, parentId: replyTarget.value?.id, replyTo: replyTarget.value?.author })
+  await store.addComment({ itemId: selectedItem.value.id, author: store.currentUser.name, avatar: store.currentUser.name.slice(0, 1), content, parentId: replyTarget.value?.id, replyTo: replyTarget.value?.author })
   commentText.value = ''
   replyTarget.value = null
 }

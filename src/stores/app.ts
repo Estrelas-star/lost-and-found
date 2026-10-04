@@ -9,6 +9,8 @@ import {
 } from '../api/item'
 import { setAuth, clearAuth, getToken, getStoredUser } from '../utils/auth'
 import type { UserResponse } from '../api/types'
+import { createComment, listComments, likeComment } from '../api/comment'
+import type { CommentDTO } from '../api/comment'
 
 import { defineStore } from 'pinia'
 
@@ -100,6 +102,31 @@ export const useAppStore = defineStore('app', () => {
     { id: 2, itemId: 1, author: '李同学', avatar: '李', date: '今天 09:31', content: '是在三楼靠窗的位置，已经交给服务台了。', likes: 5, liked: false, parentId: 1, replyTo: '林知夏' },
     { id: 3, itemId: 2, author: '周同学', avatar: '周', date: '昨天 18:42', content: '如果有看到蓝色帆布包，麻烦帮忙留意一下，谢谢！', likes: 2, liked: false }
   ])
+
+  // 后端 CommentDTO 只返回 user_id，不返回昵称/头像（model/advanced/comment.go）；
+  // 故作者暂以“用户#id”标识，待后端在 CommentDTO 补充 nickname/avatar 字段即可直接显示真实昵称。
+  function formatCommentDate(iso: string): string {
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return iso
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const hm = pad(d.getHours()) + ':' + pad(d.getMinutes())
+    if (d.toDateString() === now.toDateString()) return '今天 ' + hm
+    return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + hm
+  }
+  function mapToComment(dto: CommentDTO): Comment {
+    return {
+      id: dto.id,
+      itemId: dto.item_id,
+      author: '用户#' + dto.user_id,
+      avatar: String(dto.user_id).slice(-1) || 'U',
+      date: formatCommentDate(dto.created_at),
+      content: dto.content,
+      likes: 0,
+      liked: false,
+      parentId: dto.parent_id ?? undefined,
+    }
+  }
 
   // 登录用户(响应式): 登录时写入、退出时清空, 直接驱动 currentUser,
   // 避免直接读存储导致名字/身份登录后不刷新
@@ -355,15 +382,46 @@ export const useAppStore = defineStore('app', () => {
       ? likedItemIds.value.filter((itemId) => itemId !== id)
       : [...likedItemIds.value, id]
   }
-  function addComment(comment: Omit<Comment, 'id' | 'date' | 'likes' | 'liked'>) {
-    comments.value.push({ ...comment, id: Date.now(), date: '刚刚', likes: 0, liked: false })
+  async function fetchComments(itemId: number) {
+    try {
+      const res = await listComments({ item_id: itemId, started_id: 0, limit: 100 })
+      if (res && Array.isArray(res.comment_dtos)) {
+        const fromServer = res.comment_dtos.map(mapToComment)
+        comments.value = comments.value.filter((c) => c.itemId !== itemId).concat(fromServer)
+      }
+    } catch (e) {
+      // 后端 comment 接口未就绪（404/未实现）时，保留本地 mock，保证评论区不崩
+      console.warn('[comment] 拉取评论失败，保留本地 mock：', (e as Error).message)
+    }
   }
-  function toggleCommentLike(id: number) {
+  async function addComment(comment: Omit<Comment, 'id' | 'date' | 'likes' | 'liked'>) {
+    // 优先走真实接口；失败（后端未就绪/网络异常）回退本地 mock，保证不崩、开发态可用
+    try {
+      await createComment({
+        item_id: comment.itemId,
+        parent_id: comment.parentId ?? null,
+        content: comment.content,
+        user_id: authUser.value?.id ?? 0,
+      })
+      await fetchComments(comment.itemId)
+      return
+    } catch (e) {
+      console.warn('[comment] 创建评论走真实接口失败，回退本地 mock：', (e as Error).message)
+      comments.value.push({ ...comment, id: Date.now(), date: '刚刚', likes: 0, liked: false })
+    }
+  }
+  async function toggleCommentLike(id: number) {
+    // 先本地乐观更新（即时反馈），再尝试同步后端；后端 Like 未实现时仅本地生效
     const comment = comments.value.find((entry) => entry.id === id)
     if (!comment) return
     comment.liked = !comment.liked
     comment.likes += comment.liked ? 1 : -1
+    try {
+      await likeComment(id)
+    } catch (e) {
+      console.warn('[comment] 点赞同步失败（仅本地生效）：', (e as Error).message)
+    }
   }
 
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaimedIds, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaimedIds, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser }
 })
