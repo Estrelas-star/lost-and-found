@@ -127,8 +127,10 @@ defineExpose({ validate, reset })
 </template>
 
 <style scoped>
-.location-selector{display:flex;flex-wrap:wrap;gap:10px;width:100%}
-.location-selector .loc-col{flex:1 1 100%;width:100%;min-width:100%}
-.location-selector .loc-cascader{flex:1 1 100%;width:100%}
-@media(max-width:420px){.location-selector .loc-col{flex:1 1 100%;min-width:100%}}
+.location-selector{display:flex;flex-direction:column;gap:10px;width:100%}
+.location-selector .loc-col,
+.location-selector .loc-cascader{width:100%}
+.location-selector :deep(.el-select),
+.location-selector :deep(.el-cascader),
+.location-selector :deep(.el-input){width:100%}
 </style>
