@@ -57,7 +57,7 @@ const categoryOptions = ['数码', '证件', '日用', '服饰', '书籍', '其�
 const locationOptions = computed(() => ['全部', ...Array.from(new Set(store.items.map((item) => item.location.split('·')[0]?.trim()).filter(Boolean)))])
 const timeOptions = ['全部', '近3天', '近7天', '近30天']
 const filteredItems = computed(() => store.items.filter((item) => {
-  if (item.status === '已撤回' || item.status === '已找回') return false
+  if (item.status === '待审核' || item.status === '已撤回' || item.status === '已找回') return false
   const matchesType = filter.value === '全部' || item.type === filter.value
   const matchesCategory = categoryFilter.value === '全部' || item.tags.includes(categoryFilter.value)
   const matchesLocation = locationFilter.value === '全部' || item.location.includes(locationFilter.value)
@@ -332,7 +332,7 @@ function submitPost() {
   })
 
   resetPublishForm()
-  flash('信息已提交，等待管理员审核')
+  flash('发布成功！请等待管理员审核，通过后将在列表中展示。')
 }
 
 function claim(item: Item) {
