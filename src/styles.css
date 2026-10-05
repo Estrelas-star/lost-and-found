@@ -66,3 +66,4 @@
 .filter-label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.3px}
 .filter-box .el-select,.filter-box .el-cascader,.filter-box .el-input{width:100%}
 .filter-reset{align-self:flex-end}
+

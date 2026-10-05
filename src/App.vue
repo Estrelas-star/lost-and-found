@@ -12,6 +12,7 @@ import ManageItems from './components/ManageItems.vue'
 import EditItemDialog from './components/EditItemDialog.vue'
 import UserSettingsDialog from './components/UserSettingsDialog.vue'
 import NotificationBell from './components/NotificationBell.vue'
+import TagWall from './components/TagWall.vue'
 import { getItem } from './api/item'
 import { resolveImageUrl } from './utils/image'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -21,7 +22,7 @@ const router = useRouter()
 const route = useRoute()
 const search = ref('')
 const filter = ref<'全部' | ItemType>('全部')
-const categoryFilter = ref('全部')
+const selectedCategories = ref<string[]>([])
 const locationFilter = ref('全部')
 const currentPage = ref(1)
 const pageSize = ref(6)
@@ -41,7 +42,7 @@ const currentAvatar = computed(() => resolveImageUrl(store.authUser?.avatar))
 const roleLabels = { student: '学生端', itemAdmin: '失物招领管理', systemAdmin: '系统管理' }
 const pageTitle = computed(() => ({ home: '发现物品', publish: '发布信息', posts: '我的发布', claims: '我的认领', audit: '审核中心', manage: '物品管理', dashboard: '数据总览', users: '账号管理', notices: '公告管理' })[store.activeRoute])
 const visibleNavItems = computed(() => navItems[store.role].filter((item) => (item.roles as readonly Role[]).includes(store.role)))
-const categoryOptions = computed(() => ['全部', ...store.tags.map((t) => t.name)])
+// 分类筛选改用标签墙（selectedCategories），不再需要 categoryOptions
 const locationOptions = computed(() => ['全部', ...store.locations.map((l) => l.name)])
 // 首页地点筛选：优先用后端真实地点树做级联选择；无数据时回退扁平下拉
 const usingRealLocations = computed(() => store.locations.length > 0)
@@ -63,7 +64,11 @@ const locationCascaderOptions = computed(() => buildLocTree(store.locations))
 const locationPath = ref<number[]>([])
 
 // 首页数据直接取后端按筛选条件返回的真实结果（已移除本地 mock 与前端过滤）
-const filteredItems = computed(() => store.remoteItems)
+const filteredItems = computed(() => {
+  const items = store.remoteItems
+  if (!selectedCategories.value.length) return items
+  return items.filter((it) => (it.tags ?? []).some((t) => selectedCategories.value.includes(t)))
+})
 const detailImages = computed(() => selectedItem.value?.images?.length ? selectedItem.value.images : [])
 const detailViews = computed(() => selectedItem.value ? 128 + selectedItem.value.id * 17 : 0)
 const detailLikes = computed(() => selectedItem.value ? 12 + selectedItem.value.id * 3 + (likedItems.value.includes(selectedItem.value.id) ? 1 : 0) : 0)
@@ -91,7 +96,7 @@ const stats = computed(() => ({ total: store.items.length + 26, returned: store.
 
 // 筛选条件变化：重置到第 1 页并加 300ms 防抖，避免搜索框每敲一字就打一次后端
 let homeFilterTimer: ReturnType<typeof setTimeout> | null = null
-watch([filter, categoryFilter, locationFilter, locationPath, search], () => {
+watch([filter, selectedCategories, locationFilter, locationPath, search], () => {
   currentPage.value = 1
   if (homeFilterTimer) clearTimeout(homeFilterTimer)
   homeFilterTimer = setTimeout(() => applyHomeFilters(), 300)
@@ -108,7 +113,7 @@ watch(() => route.meta.page, (page) => {
 function applyHomeFilters() {
   store.fetchItems({
     type: filter.value === '全部' ? undefined : filter.value === 'lost' ? 0 : 1,
-    tag_id: categoryFilter.value === '全部' ? undefined : store.tagIdByName[categoryFilter.value],
+    tag_id: undefined, // 分类改为前端多选过滤（见 filteredItems）
     location_id: usingRealLocations.value
       ? (locationPath.value.length ? locationPath.value[locationPath.value.length - 1] : undefined)
       : (locationFilter.value === '全部' ? undefined : store.locationIdByName[locationFilter.value]),
@@ -126,7 +131,7 @@ function onHomeSize(s: number) { pageSize.value = s; currentPage.value = 1; appl
 function resetHomeFilters() {
   search.value = ''
   filter.value = '全部'
-  categoryFilter.value = '全部'
+  selectedCategories.value = []
   locationFilter.value = '全部'
   locationPath.value = []
   currentPage.value = 1
@@ -342,10 +347,7 @@ function submitReject() {
               </div>
               <div class="filter-box">
                 <span class="filter-label">分类</span>
-                <el-select v-model="categoryFilter" filterable placeholder="全部">
-                  <el-option label="全部" value="全部" />
-                  <el-option v-for="category in categoryOptions" :key="category" :label="category" :value="category" />
-                </el-select>
+                <TagWall v-model="selectedCategories" :options="store.tags.map(t => t.name)" label="分类" :sidebar-width="246" />
               </div>
               <div class="filter-box">
                 <span class="filter-label">地点</span>

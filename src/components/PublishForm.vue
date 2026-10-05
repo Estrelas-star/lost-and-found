@@ -25,6 +25,7 @@ async function onDescDrop(e: DragEvent) {
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAppStore, type ItemType } from '../stores/app'
 import LocationSelector from './LocationSelector.vue'
+import TagWall from './TagWall.vue'
 import { createItem, setItemImages, listMyItems } from '../api/item'
 import { uploadImage } from '../api/upload'
 const store = useAppStore()
@@ -162,9 +163,7 @@ async function fetchNewItemId(): Promise<number | null> {
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="物品标签" :error="errors.tags" required>
-            <el-select v-model="form.tags" multiple filterable placeholder="请选择标签" class="publish-control">
-              <el-option v-for="tag in store.tags" :key="tag.id" :label="tag.name" :value="tag.name" />
-            </el-select>
+            <TagWall v-model="form.tags" :options="store.tags.map(t => t.name)" label="标签" :sidebar-width="246" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -203,5 +202,5 @@ async function fetchNewItemId(): Promise<number | null> {
 </template>
 
 <style scoped>
-.publish-page{max-width:920px;margin:0 auto}.publish-intro{margin-bottom:24px}.publish-intro h1{margin:12px 0 8px;font-size:32px}.publish-intro p{margin:0;color:var(--muted)}.publish-form{padding:26px;background:#fff;border:1px solid var(--line);border-radius:14px}.publish-control,.publish-form .el-input,.publish-form .el-textarea,.publish-form .el-radio-group{width:100%}.publish-type{display:flex}.publish-type .el-radio-button{flex:1}.publish-type :deep(.el-radio-button__inner){width:100%}.upload-box{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:90px;border:1px dashed #c8d7cd;border-radius:10px;background:#fbfdfb;color:var(--green);cursor:pointer}.upload-box:hover{background:#f0f8f3}.upload-box input{display:none}.upload-box small{color:var(--muted);font-weight:400}.preview-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}.preview-item{position:relative;width:120px;height:120px;overflow:hidden;border-radius:10px}.preview-image{width:120px;height:120px}.remove-image{position:absolute;top:6px;right:6px;width:23px;height:23px;border:0;border-radius:50%;background:#19332fcc;color:#fff;font-size:16px;cursor:pointer}.publish-form :deep(.el-textarea){width:100%}.publish-form :deep(.el-textarea__inner){width:100%}.publish-submit{width:100%;margin-top:8px}.desc-dropzone{padding:4px;border-radius:8px;transition:outline .15s}.desc-dropzone.drag-over{outline:2px dashed var(--green);background:#f0f8f3}@media(max-width:700px){.publish-page{width:100%}.publish-form{padding:18px}.publish-form :deep(.el-col){max-width:100%;flex:0 0 100%}}
+.publish-page{max-width:920px;margin:0 auto}.publish-intro{margin-bottom:24px}.publish-intro h1{margin:12px 0 8px;font-size:32px}.publish-intro p{margin:0;color:var(--muted)}.publish-form{padding:26px;background:#fff;border:1px solid var(--line);border-radius:14px}.publish-control,.publish-form .el-input,.publish-form .el-textarea,.publish-form .el-radio-group{width:100%}.publish-type{display:flex}.publish-type .el-radio-button{flex:1}.publish-type :deep(.el-radio-button__inner){width:100%}.upload-box{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:90px;border:1px dashed #c8d7cd;border-radius:10px;background:#fbfdfb;color:var(--green);cursor:pointer}.upload-box:hover{background:#f0f8f3}.upload-box input{display:none}.upload-box small{color:var(--muted);font-weight:400}.preview-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}.preview-item{position:relative;width:120px;height:120px;overflow:hidden;border-radius:10px}.preview-image{width:120px;height:120px}.remove-image{position:absolute;top:6px;right:6px;width:23px;height:23px;border:0;border-radius:50%;background:#19332fcc;color:#fff;font-size:16px;cursor:pointer}.publish-form :deep(.el-textarea){width:100%}.publish-form :deep(.el-textarea__inner){width:100%}.publish-submit{width:100%;margin-top:8px}.desc-dropzone{padding:4px;border-radius:8px;transition:outline .15s;width:100%;box-sizing:border-box}.desc-dropzone.drag-over{outline:2px dashed var(--green);background:#f0f8f3}@media(max-width:700px){.publish-page{width:100%}.publish-form{padding:18px}.publish-form :deep(.el-col){max-width:100%;flex:0 0 100%}}
 </style>
