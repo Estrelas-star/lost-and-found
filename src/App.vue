@@ -343,7 +343,10 @@ function submitReject() {
       <div class="page-wrap">
         <AuditCenter v-if="store.activeRoute === 'audit'" />
         <ManageItems v-if="store.activeRoute === 'manage'" />
-        <PublishForm v-if="store.activeRoute === 'publish'" />
+        <!-- 发布表单用 KeepAlive 缓存：填写中途切到其它页面再回来，草稿不丢 -->
+        <KeepAlive>
+          <PublishForm v-if="store.activeRoute === 'publish'" />
+        </KeepAlive>
         <section v-if="store.activeRoute === 'home'" class="page-section">
           <div class="welcome-row"><div><span class="eyebrow">WED · 06.17</span><h1>你好，{{ store.currentUser.name }} <span class="wave">✦</span></h1><p>今天也帮一件物品找到回家的路吧。</p></div><button class="primary-btn" @click="go('publish')">＋ 发布信息</button></div>
           <div v-if="store.homeNotice" class="notice-strip"><span class="notice-icon">✦</span><div style="cursor:pointer" @click="openHomeNotice"><strong>{{ store.homeNotice.title }}</strong><small>{{ noticeDate(store.homeNotice) }} · 查看详情 →</small></div><button title="不在首页显示（可在顶部「公告栏」回看）" @click="dismissHomeNotice">×</button></div>
