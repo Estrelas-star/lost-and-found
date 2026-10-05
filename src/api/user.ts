@@ -7,6 +7,7 @@ import type {
   CreateUserRequest,
   LoginRequest,
   UpdateUserRequest,
+  PublicUserResponse,
   UserResponse,
 } from './types'
 
@@ -41,7 +42,7 @@ export function getMe() {
 
 /** 按 id 批量获取用户: POST /user/batch  */
 export function batchGetUsers(ids: number[]) {
-  return request<UserResponse[]>('/user/batch', {
+  return request<PublicUserResponse[]>('/user/batch', {
     method: 'POST',
     body: JSON.stringify({ ids } satisfies BatchRequest),
   })

@@ -63,6 +63,17 @@ export interface AddUserCreditRequest {
   description?: string
 }
 
+/** /user/batch 实际返回（后端 model.PublicUserResponse，仅公开字段） */
+export interface PublicUserResponse {
+  id: number
+  nickname: string
+  gender?: number | null
+  avatar?: string | null
+  role: number        // 0=普通学生 1=业务管理员 2=系统管理员
+  last_login_at?: string | null
+  created_at: string
+}
+
 /** 根据 id 批量获取用户列表 */
 export interface BatchRequest {
   ids: number[]   // 用户 id 数组

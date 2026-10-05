@@ -16,6 +16,8 @@ import {
   markNotificationsRead as markReadApi, deleteNotifications as deleteApi, adminBroadcast,
 } from '../api/notification'
 import type { NotificationItem, NotificationDetail } from '../api/notification'
+import { getAnnouncements } from '../api/announcement'
+import type { AnnouncementItem } from '../api/announcement'
 
 import { defineStore } from 'pinia'
 
@@ -85,10 +87,56 @@ export const useAppStore = defineStore('app', () => {
   const role = ref<Role>((localStorage.getItem('role') as Role) || 'student')
   const activeRoute = ref('home')
   const isAuthenticated = ref(!!getToken())
-  const notices = ref<any[]>([
-    { id: 1, title: '期末周拾光服务时间调整通知', date: '2026-06-12', tag: '重要' },
-    { id: 2, title: '毕业季物品集中认领活动开始啦', date: '2026-06-08', tag: '活动' }
-  ])
+  // 公开公告（真实接口 GET /announcement，仅已发布）：首页公告条 + 公告管理页共用
+  const notices = ref<AnnouncementItem[]>([])
+  async function fetchNotices(params: { page?: number; page_size?: number } = {}) {
+    try {
+      const res = await getAnnouncements({ page: 1, page_size: 20, ...params })
+      const list = res.data?.announcements ?? []
+      // 置顶优先，其次按 id 倒序（后端已按 id 倒序返回）
+      notices.value = [...list].sort((a, b) => (b.is_top - a.is_top) || (b.id - a.id))
+    } catch { /* 拉取失败不影响首页 */ }
+  }
+  // 首页公告条展示的最新一条（无公告时为 null）
+  const latestNotice = computed(() => notices.value[0] ?? null)
+
+  // —— 公告「×」关闭 / 「已看」记录（公告无服务端已读接口，前端用 localStorage 记忆）——
+  const DISMISSED_KEY = 'lnf-dismissed-notices'
+  const READ_KEY = 'lnf-read-notices'
+  function loadIdList(key: string): number[] {
+    try {
+      const arr = JSON.parse(localStorage.getItem(key) || '[]')
+      return Array.isArray(arr) ? arr.filter((x) => typeof x === 'number') : []
+    } catch { return [] }
+  }
+  function saveIdList(key: string, ids: number[]) {
+    try { localStorage.setItem(key, JSON.stringify(ids)) } catch { /* 忽略 */ }
+  }
+  // 首页公告条点过「×」的公告：不再出现在首页，但公告栏里始终保留
+  const dismissedNoticeIds = ref<number[]>(loadIdList(DISMISSED_KEY))
+  function dismissNotice(id: number) {
+    if (dismissedNoticeIds.value.includes(id)) return
+    dismissedNoticeIds.value = [...dismissedNoticeIds.value, id]
+    saveIdList(DISMISSED_KEY, dismissedNoticeIds.value)
+  }
+  // 首页公告条只提醒「最新一条」公告（置顶优先，见 fetchNotices 的排序）：
+  // 被「×」关闭后首页不再显示，等有更新的公告出现才会再提醒；历史公告始终可在顶栏公告栏回看
+  const homeNotice = computed(() => {
+    const first = notices.value[0] ?? null
+    return first && !dismissedNoticeIds.value.includes(first.id) ? first : null
+  })
+  // 顶栏公告栏的「已看」记录，用于红点角标
+  const readNoticeIds = ref<number[]>(loadIdList(READ_KEY))
+  function markNoticeRead(id: number) {
+    if (readNoticeIds.value.includes(id)) return
+    readNoticeIds.value = [...readNoticeIds.value, id]
+    saveIdList(READ_KEY, readNoticeIds.value)
+  }
+  function markAllNoticesRead() {
+    readNoticeIds.value = notices.value.map((n) => n.id)
+    saveIdList(READ_KEY, readNoticeIds.value)
+  }
+  const unreadNoticeCount = computed(() => notices.value.filter((n) => !readNoticeIds.value.includes(n.id)).length)
   const items = ref<Item[]>([])
   // —— 本地存储审计（L1）：除 jwt-token(auth) 外，前端仅以下本地状态需要关注 ——
   //   • role：登录时由服务端同步（setRole(roleMap[user.role])），仅作未登录兜底展示，非关键决策源
@@ -428,5 +476,5 @@ export const useAppStore = defineStore('app', () => {
     })
     await fetchComments(comment.itemId)
   }
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, notifications, unreadCount, fetchNotifications, fetchUnreadCount, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
 })

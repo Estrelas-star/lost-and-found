@@ -12,7 +12,10 @@ import ManageItems from './components/ManageItems.vue'
 import EditItemDialog from './components/EditItemDialog.vue'
 import UserSettingsDialog from './components/UserSettingsDialog.vue'
 import NotificationBell from './components/NotificationBell.vue'
+import AnnouncementBell from './components/AnnouncementBell.vue'
 import TagWall from './components/TagWall.vue'
+import AdminUsers from './components/AdminUsers.vue'
+import AnnouncementManager from './components/AnnouncementManager.vue'
 import { getItem } from './api/item'
 import { resolveImageUrl } from './utils/image'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -36,6 +39,20 @@ function openEdit(item: Item) { editingItem.value = item; editDialogVisible.valu
 function closeEditDialog() { editDialogVisible.value = false; editingItem.value = null }
 const likedItems = ref<number[]>([])
 const notice = ref('')
+// 首页公告条：展示 store.homeNotice（第一条没被「×」关掉的公告）；关掉后仍可在顶栏「公告栏」回看
+function noticeDate(n: { published_at?: string | null; created_at: string }) {
+  const v = n.published_at || n.created_at
+  return v ? String(v).slice(0, 10) : ''
+}
+async function showNotice(n: { title: string; content: string }) {
+  try { await ElMessageBox.alert(n.content || '（暂无内容）', n.title, { confirmButtonText: '知道了' }) } catch { /* 用户关闭 */ }
+}
+function openHomeNotice() {
+  if (store.homeNotice) showNotice(store.homeNotice)
+}
+function dismissHomeNotice() {
+  if (store.homeNotice) store.dismissNotice(store.homeNotice.id)
+}
 const profileMenuOpen = ref(false)
 const settingsVisible = ref(false)
 const currentAvatar = computed(() => resolveImageUrl(store.authUser?.avatar))
@@ -150,6 +167,7 @@ onMounted(() => {
   store.fetchTags()
   store.fetchLocations()
   store.fetchItemCount()
+  store.fetchNotices()
   store.fetchUnreadCount()
   const notifTimer = setInterval(() => store.fetchUnreadCount(), 60000)
   onUnmounted(() => clearInterval(notifTimer))
@@ -321,14 +339,14 @@ function submitReject() {
     </aside>
 
     <main class="main-content">
-      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><NotificationBell @open-item="openItemById" /><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small"><img v-if="currentAvatar" :src="currentAvatar" alt="" /><template v-else>{{ store.currentUser.name.slice(0, 1) }}</template></span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button class="profile-menu-item" @click="openSettings">账号设置</button><button @click="handleLogout">退出登录</button></div></div></div></header>
+      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><AnnouncementBell /><NotificationBell @open-item="openItemById" /><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small"><img v-if="currentAvatar" :src="currentAvatar" alt="" /><template v-else>{{ store.currentUser.name.slice(0, 1) }}</template></span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button class="profile-menu-item" @click="openSettings">账号设置</button><button @click="handleLogout">退出登录</button></div></div></div></header>
       <div class="page-wrap">
         <AuditCenter v-if="store.activeRoute === 'audit'" />
         <ManageItems v-if="store.activeRoute === 'manage'" />
         <PublishForm v-if="store.activeRoute === 'publish'" />
         <section v-if="store.activeRoute === 'home'" class="page-section">
           <div class="welcome-row"><div><span class="eyebrow">WED · 06.17</span><h1>你好，{{ store.currentUser.name }} <span class="wave">✦</span></h1><p>今天也帮一件物品找到回家的路吧。</p></div><button class="primary-btn" @click="go('publish')">＋ 发布信息</button></div>
-          <div class="notice-strip"><span class="notice-icon">✦</span><div><strong>{{ store.notices[0].title }}</strong><small>{{ store.notices[0].date }} · 查看详情 →</small></div><button @click="flash('公告已标记为已读')">×</button></div>
+          <div v-if="store.homeNotice" class="notice-strip"><span class="notice-icon">✦</span><div style="cursor:pointer" @click="openHomeNotice"><strong>{{ store.homeNotice.title }}</strong><small>{{ noticeDate(store.homeNotice) }} · 查看详情 →</small></div><button title="不在首页显示（可在顶部「公告栏」回看）" @click="dismissHomeNotice">×</button></div>
           <div class="section-head"><div><h2>校园里的物品</h2><p>实时更新，共 {{ store.remoteTotal }} 条信息</p><p class="home-count">{{ store.itemCount }} 件物品正在被认真寻找</p></div></div>
 
           <div class="filter-bar">
@@ -391,7 +409,8 @@ function submitReject() {
 
         <section v-else-if="store.activeRoute === 'dashboard'" class="page-section"><div class="section-intro"><span class="eyebrow">OVERVIEW · JUNE 2026</span><h1>校园失物招领总览</h1><p>数据会说话，看看校园里正在发生什么。</p></div><div class="metrics"><MetricCard label="累计发布" :value="stats.total" trend="较上月 +18%" tone="mint"/><MetricCard label="成功归还" :value="stats.returned" trend="归还率持续提升" tone="yellow"/><MetricCard label="待处理" :value="stats.pending" trend="今日需关注" tone="coral"/><MetricCard label="总体归还率" :value="stats.rate" trend="较上月 +6.4%" tone="blue"/></div><div class="dashboard-grid"><div class="chart-panel"><div class="panel-head"><h2>近 30 日趋势</h2><span>发布量 / 归还量</span></div><div class="fake-chart"><div v-for="(height, index) in [38, 56, 48, 72, 62, 80, 68, 92, 76, 88, 72, 96]" :key="index" class="bar-group"><i :style="{ height: height + '%' }"></i><b :style="{ height: height * .62 + '%' }"></b></div></div><div class="chart-labels"><span>05.19</span><span>05.26</span><span>06.02</span><span>06.09</span><span>06.16</span></div></div><div class="ranking-panel"><div class="panel-head"><h2>高频地点</h2><span>发布数量</span></div><div v-for="(place, index) in [['图书馆', 42], ['南区食堂', 36], ['体育馆', 29], ['教学楼', 21]]" :key="place[0]" class="rank-row"><span>0{{ index + 1 }}</span><strong>{{ place[0] }}</strong><i><b :style="{ width: place[1] * 2 + '%' }"></b></i><em>{{ place[1] }}</em></div></div></div></section>
 
-        <section v-else-if="store.activeRoute === 'users' || store.activeRoute === 'notices'" class="page-section"><div class="section-intro"><span class="eyebrow">SYSTEM SETTINGS</span><h1>{{ pageTitle }}</h1><p>{{ store.activeRoute === 'users' ? '管理校园账号、角色与访问权限。' : '让重要消息抵达每一位同学。' }}</p></div><div class="table-panel"><div v-for="row in (store.activeRoute === 'users' ? [{ name: '林知夏', id: '2023010218', role: '普通学生', state: '正常' }, { name: '赵老师', id: 'LF-ADMIN-01', role: '失物招领管理员', state: '正常' }, { name: '陈老师', id: 'SYS-ADMIN-01', role: '系统管理员', state: '正常' }] : store.notices)" :key="row.id || row.title" class="table-row"><div class="mini-visual mint">{{ store.activeRoute === 'users' ? row.name.slice(0, 1) : '✦' }}</div><div class="row-main"><strong>{{ row.name || row.title }}</strong><small>{{ row.id || row.date }} · {{ row.role || '公告内容管理' }}</small></div><span class="status-pill">{{ row.state || row.tag }}</span><button class="text-btn" @click="flash('编辑功能已打开')">编辑</button></div></div></section>
+        <section v-else-if="store.activeRoute === 'users'" class="page-section"><AdminUsers /></section>
+        <section v-else-if="store.activeRoute === 'notices'" class="page-section"><AnnouncementManager /></section>
       </div>
     </main>
     <DetailDialog :item="selectedItem" :visible="detailDialogVisible" @close="closeDetailDialog" />
