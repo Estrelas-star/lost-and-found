@@ -9,7 +9,7 @@ import {
 } from '../api/item'
 import { setAuth, clearAuth, getToken, getStoredUser } from '../utils/auth'
 import type { UserResponse } from '../api/types'
-import { createComment, listComments, likeComment } from '../api/comment'
+import { createComment, listComments } from '../api/comment'
 import type { CommentDTO } from '../api/comment'
 import {
   getNotifications, getUnreadCount, getNotificationDetail,
@@ -63,8 +63,6 @@ export interface Comment {
   avatar: string
   date: string
   content: string
-  likes: number
-  liked: boolean
   parentId?: number
   replyTo?: string
 }
@@ -98,9 +96,9 @@ export const useAppStore = defineStore('app', () => {
   const favoriteItemIds = ref<number[]>([])
   const likedItemIds = ref<number[]>([])
   const comments = ref<Comment[]>([
-    { id: 1, itemId: 1, author: '林知夏', avatar: '林', date: '今天 09:24', content: '请问是在图书馆哪一侧的自习区找到的呢？', likes: 3, liked: false },
-    { id: 2, itemId: 1, author: '李同学', avatar: '李', date: '今天 09:31', content: '是在三楼靠窗的位置，已经交给服务台了。', likes: 5, liked: false, parentId: 1, replyTo: '林知夏' },
-    { id: 3, itemId: 2, author: '周同学', avatar: '周', date: '昨天 18:42', content: '如果有看到蓝色帆布包，麻烦帮忙留意一下，谢谢！', likes: 2, liked: false }
+    { id: 1, itemId: 1, author: '林知夏', avatar: '林', date: '今天 09:24', content: '请问是在图书馆哪一侧的自习区找到的呢？' },
+    { id: 2, itemId: 1, author: '李同学', avatar: '李', date: '今天 09:31', content: '是在三楼靠窗的位置，已经交给服务台了。', parentId: 1, replyTo: '林知夏' },
+    { id: 3, itemId: 2, author: '周同学', avatar: '周', date: '昨天 18:42', content: '如果有看到蓝色帆布包，麻烦帮忙留意一下，谢谢！' }
   ])
 
   // 后端 CommentDTO 只返回 user_id，不返回昵称/头像（model/advanced/comment.go）；
@@ -122,8 +120,6 @@ export const useAppStore = defineStore('app', () => {
       avatar: String(dto.user_id).slice(-1) || 'U',
       date: formatCommentDate(dto.created_at),
       content: dto.content,
-      likes: 0,
-      liked: false,
       parentId: dto.parent_id ?? undefined,
     }
   }
@@ -423,34 +419,14 @@ export const useAppStore = defineStore('app', () => {
       console.warn('[comment] 拉取评论失败，保留本地 mock：', (e as Error).message)
     }
   }
-  async function addComment(comment: Omit<Comment, 'id' | 'date' | 'likes' | 'liked'>) {
-    // 优先走真实接口；失败（后端未就绪/网络异常）回退本地 mock，保证不崩、开发态可用
-    try {
-      await createComment({
-        item_id: comment.itemId,
-        parent_id: comment.parentId ?? null,
-        content: comment.content,
-        user_id: authUser.value?.id ?? 0,
-      })
-      await fetchComments(comment.itemId)
-      return
-    } catch (e) {
-      console.warn('[comment] 创建评论走真实接口失败，回退本地 mock：', (e as Error).message)
-      comments.value.push({ ...comment, id: Date.now(), date: '刚刚', likes: 0, liked: false })
-    }
+  async function addComment(comment: Omit<Comment, 'id' | 'date'>) {
+    await createComment({
+      item_id: comment.itemId,
+      parent_id: comment.parentId ?? null,
+      content: comment.content,
+      user_id: authUser.value?.id ?? 0,
+    })
+    await fetchComments(comment.itemId)
   }
-  async function toggleCommentLike(id: number) {
-    // 先本地乐观更新（即时反馈），再尝试同步后端；后端 Like 未实现时仅本地生效
-    const comment = comments.value.find((entry) => entry.id === id)
-    if (!comment) return
-    comment.liked = !comment.liked
-    comment.likes += comment.liked ? 1 : -1
-    try {
-      await likeComment(id)
-    } catch (e) {
-      console.warn('[comment] 点赞同步失败（仅本地生效）：', (e as Error).message)
-    }
-  }
-
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, notifications, unreadCount, fetchNotifications, fetchUnreadCount, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, notifications, unreadCount, fetchNotifications, fetchUnreadCount, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
 })
