@@ -108,3 +108,17 @@ export function renderMarkdown(src: string | undefined | null): string {
   closeList()
   return out.join('')
 }
+
+// 提取原始 markdown 中第一张图片的 URL（![alt](url)），经安全白名单校验，无则返回空串。
+// 用途：列表卡片把首图提为头图展示。
+export function firstImageUrl(src: string | undefined | null): string {
+  if (!src) return ''
+  const m = src.match(/!\[[^\]]*\]\(([^)\s]+)\)/)
+  return m ? safeUrl(m[1]) : ''
+}
+
+// 去掉全部图片语法（保留其余内容）。用途：头图已单独展示的卡片正文，避免图片重复渲染撑高卡片。
+export function stripImages(src: string | undefined | null): string {
+  if (!src) return ''
+  return src.replace(/!\[[^\]]*\]\(([^)\s]+)\)/g, '')
+}

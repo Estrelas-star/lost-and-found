@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { renderMarkdown } from './utils/markdown'
+import { renderMarkdown, firstImageUrl, stripImages } from './utils/markdown'
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore, type Item, type ItemType, type Role } from './stores/app'
@@ -362,9 +362,9 @@ function submitReject() {
           </div>
 
           <div class="item-grid">
-            <article v-for="item in filteredItems" :key="item.id" class="item-card" @click="openItem(item)">
-              <div class="item-visual" :class="item.color"><span>{{ item.icon }}</span><em>{{ item.type === 'lost' ? '寻物' : '招领' }}</em></div>
-              <div class="item-info"><div class="item-title"><h3>{{ item.title }}</h3><span :class="item.status === '已认领' ? 'done' : ''">{{ item.status }}</span></div><div class="markdown-body" v-html="renderMarkdown(item.desc)"></div><div class="item-meta"><span>⌖ {{ item.location }}</span><span>{{ item.date }}</span></div></div>
+            <article v-for="item in filteredItems" :key="item.id" class="item-card" :class="{ 'has-cover': !!firstImageUrl(item.desc) }" @click="openItem(item)">
+              <div class="item-visual" :class="item.color"><img v-if="firstImageUrl(item.desc)" :src="resolveImageUrl(firstImageUrl(item.desc))" alt="" /><span v-else>{{ item.icon }}</span><em>{{ item.type === 'lost' ? '寻物' : '招领' }}</em></div>
+              <div class="item-info"><div class="item-title"><h3>{{ item.title }}</h3><span :class="item.status === '已认领' ? 'done' : ''">{{ item.status }}</span></div><div class="markdown-body" v-html="renderMarkdown(stripImages(item.desc))"></div><div class="item-meta"><span>⌖ {{ item.location }}</span><span>{{ item.date }}</span></div></div>
             </article>
             <div v-if="!filteredItems.length" class="empty-state"><el-empty description="暂时没有找到相关物品" /></div>
           </div>
