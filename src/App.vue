@@ -444,42 +444,49 @@ function toggleDisabled(user: User) {
           <div class="notice-strip"><span class="notice-icon">✦</span><div><strong>{{ store.notices[0].title }}</strong><small>{{ store.notices[0].date }} · 查看详情 →</small></div><button @click="flash('公告已标记为已读')">×</button></div>
           <div class="section-head"><div><h2>校园里的物品</h2><p>实时更新，共 {{ filteredItems.length }} 条信息</p></div></div>
 
-          <div class="filter-bar">
-            <div class="filter-row">
-              <div class="filter-box filter-search">
-                <span class="filter-label">搜索</span>
-                <el-input v-model="search" placeholder="搜索物品、地点、关键词" clearable />
-              </div>
-              <div class="filter-box">
-                <span class="filter-label">类型</span>
-                <el-select v-model="filter" placeholder="全部">
-                  <el-option label="全部" value="全部" />
-                  <el-option label="寻物" value="lost" />
-                  <el-option label="招领" value="found" />
-                </el-select>
-              </div>
-              <div class="filter-box">
-                <span class="filter-label">分类</span>
-                <el-select v-model="categoryFilter" placeholder="全部">
-                  <el-option label="全部" value="全部" />
-                  <el-option v-for="category in categoryOptions" :key="category" :label="category" :value="category" />
-                </el-select>
-              </div>
-              <div class="filter-box">
-                <span class="filter-label">地点</span>
-                <el-select v-model="locationFilter" placeholder="全部">
-                  <el-option label="全部" value="全部" />
-                  <el-option v-for="location in locationOptions.filter((item) => item !== '全部')" :key="location" :label="location" :value="location" />
-                </el-select>
-              </div>
-              <div class="filter-box">
-                <span class="filter-label">时间</span>
-                <el-select v-model="timeFilter" placeholder="全部">
-                  <el-option v-for="time in timeOptions" :key="time" :label="time" :value="time" />
-                </el-select>
-              </div>
-            </div>
-          </div>
+          <el-form class="filter-form" label-position="top" @submit.prevent>
+            <el-row :gutter="16">
+              <el-col :span="24">
+                <el-form-item label="搜索">
+                  <el-input v-model="search" placeholder="搜索物品、地点、关键词" clearable />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="16">
+              <el-col :xs="12" :sm="6" :md="6" :lg="6">
+                <el-form-item label="类型">
+                  <el-select v-model="filter" placeholder="全部" class="filter-select">
+                    <el-option label="全部" value="全部" />
+                    <el-option label="寻物" value="lost" />
+                    <el-option label="招领" value="found" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="12" :sm="6" :md="6" :lg="6">
+                <el-form-item label="分类">
+                  <el-select v-model="categoryFilter" placeholder="全部" class="filter-select">
+                    <el-option label="全部" value="全部" />
+                    <el-option v-for="category in categoryOptions" :key="category" :label="category" :value="category" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="12" :sm="6" :md="6" :lg="6">
+                <el-form-item label="地点">
+                  <el-select v-model="locationFilter" placeholder="全部" class="filter-select">
+                    <el-option label="全部" value="全部" />
+                    <el-option v-for="location in locationOptions.filter((item) => item !== '全部')" :key="location" :label="location" :value="location" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="12" :sm="6" :md="6" :lg="6">
+                <el-form-item label="时间">
+                  <el-select v-model="timeFilter" placeholder="全部" class="filter-select">
+                    <el-option v-for="time in timeOptions" :key="time" :label="time" :value="time" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
 
           <div class="item-grid">
             <article v-for="item in paginatedItems" :key="item.id" class="item-card" @click="openItem(item)">
