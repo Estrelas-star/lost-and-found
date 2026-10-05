@@ -74,3 +74,18 @@
 .item-card.has-cover .item-visual>span{display:none}
 .item-card.has-cover .item-info{position:absolute;left:0;right:0;bottom:0;z-index:1;background:rgba(255,255,255,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-top:1px solid #ffffffcc}
 .item-card.has-cover .item-visual em{z-index:2;background:rgba(255,255,255,.82)}
+
+/* ===== 发现物品筛选栏（融合：绿色卡片皮肤包住原控件） ===== */
+.filter-form{background:#f4f7f4;border:1px solid var(--line);border-radius:12px;padding:18px 20px 8px;margin-bottom:24px}
+.filter-form .el-form-item{margin-bottom:18px}
+.filter-form .el-form-item__label{color:var(--green);font-weight:600;font-size:14px;line-height:1.4;padding-bottom:8px;display:block;white-space:nowrap}
+.filter-form .el-input__wrapper,.filter-form .el-select__wrapper{width:100%;background:#fff}
+.filter-form .el-select,.filter-form .el-cascader{width:100%}
+.filter-form .el-form-item__content{width:100%}
+.filter-form-actions{display:flex;justify-content:flex-end;padding:4px 0 12px}
+.filter-form-actions .filter-reset{align-self:center}
+@media(max-width:700px){.filter-form{padding:14px 14px 4px}}
+
+/* ===== 发现物品分页器 ===== */
+.pagination-box{display:flex;justify-content:center;align-items:center;margin-top:24px;padding:8px 0 32px}
+.pagination-box .el-pagination{flex-wrap:wrap;row-gap:10px}
