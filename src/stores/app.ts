@@ -150,14 +150,26 @@ export const useAppStore = defineStore('app', () => {
   const items = ref<Item[]>([])
   // —— 本地存储审计（L1）：除 jwt-token(auth) 外，前端仅以下本地状态需要关注 ——
   //   • role：登录时由服务端同步（setRole(roleMap[user.role])），仅作未登录兜底展示，非关键决策源
-  //   其余 favoriteItemIds/likedItemIds 等均为内存态，不落盘。 catch { return [] } }
-  const favoriteItemIds = ref<number[]>([])
-  const likedItemIds = ref<number[]>([])
+  //   其余状态均为内存态，不落盘。 catch { return [] } }
   const comments = ref<Comment[]>([
     { id: 1, itemId: 1, author: '林知夏', avatar: '林', date: '今天 09:24', content: '请问是在图书馆哪一侧的自习区找到的呢？' },
     { id: 2, itemId: 1, author: '李同学', avatar: '李', date: '今天 09:31', content: '是在三楼靠窗的位置，已经交给服务台了。', parentId: 1, replyTo: '林知夏' },
     { id: 3, itemId: 2, author: '周同学', avatar: '周', date: '昨天 18:42', content: '如果有看到蓝色帆布包，麻烦帮忙留意一下，谢谢！' }
   ])
+
+  // —— 点赞 / 收藏（纯前端交互，后端暂无对应接口）——
+  const likedItemIds = ref<number[]>([])
+  const favoriteItemIds = ref<number[]>([])
+  function toggleItemLike(id: number) {
+    const i = likedItemIds.value.indexOf(id)
+    if (i >= 0) likedItemIds.value.splice(i, 1)
+    else likedItemIds.value.push(id)
+  }
+  function toggleFavorite(id: number) {
+    const i = favoriteItemIds.value.indexOf(id)
+    if (i >= 0) favoriteItemIds.value.splice(i, 1)
+    else favoriteItemIds.value.push(id)
+  }
 
   // 后端 CommentDTO 只返回 user_id，不返回昵称/头像（model/advanced/comment.go）；
   // 故作者暂以“用户#id”标识，待后端在 CommentDTO 补充 nickname/avatar 字段即可直接显示真实昵称。
@@ -455,16 +467,6 @@ export const useAppStore = defineStore('app', () => {
     item.status = item.status === '已关闭' ? activeStatusFor(item.type) : '已关闭'
   }
   function removeItem(id: number) { items.value = items.value.filter((entry) => entry.id !== id) }
-  function toggleFavorite(id: number) {
-    favoriteItemIds.value = favoriteItemIds.value.includes(id)
-      ? favoriteItemIds.value.filter((itemId) => itemId !== id)
-      : [...favoriteItemIds.value, id]
-  }
-  function toggleItemLike(id: number) {
-    likedItemIds.value = likedItemIds.value.includes(id)
-      ? likedItemIds.value.filter((itemId) => itemId !== id)
-      : [...likedItemIds.value, id]
-  }
   async function fetchComments(itemId: number) {
     try {
       const res = await listComments({ item_id: itemId, started_id: 0, limit: 100 })
@@ -486,5 +488,5 @@ export const useAppStore = defineStore('app', () => {
     })
     await fetchComments(comment.itemId)
   }
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, toggleFavorite, toggleItemLike, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, favoriteItemIds, likedItemIds, toggleFavorite, toggleItemLike, mapToFront }
 })
