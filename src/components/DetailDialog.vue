@@ -87,7 +87,7 @@ function submitReport() {
 </script>
 
 <template>
-  <el-dialog v-if="item" v-model="dialogVisible" align-center width="min(620px, 94vw)" :show-close="false" destroy-on-close @closed="emit('close')">
+  <el-dialog v-if="item" v-model="dialogVisible" align-center class="detail-dialog" width="min(620px, 94vw)" :show-close="false" destroy-on-close @closed="emit('close')">
     <template #header><div class="detail-dialog-header"><span>物品详情</span><button class="modal-action" @click="reportDialogVisible = true">⚑ 举报</button><button class="modal-close" @click="emit('close')">×</button></div></template>
     <div class="detail-dialog-scroll">
       <div class="detail-gallery"><el-carousel v-if="images.length" v-model="slide" height="250px" arrow="always" indicator-position="outside"><el-carousel-item v-for="image in images" :key="image"><img :src="resolveImageUrl(image)" alt="物品照片" /></el-carousel-item></el-carousel><div v-else class="detail-art" :class="item.color"><span>{{ item.icon }}</span><small>暂无照片</small></div></div>
