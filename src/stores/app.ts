@@ -106,26 +106,27 @@ export interface Comment {
 
 const SYS_ADMIN_ACCOUNT = 'sysadmin'
 
+/** 早期内置的演示账号（现已被移除，若存在于旧 localStorage 缓存中则过滤掉，避免"复活"） */
+const DEMO_ACCOUNTS = new Set(['2023010218', 'teacher01'])
+
 function seedUsers(): User[] {
   const stored = localStorage.getItem('registered_users')
   if (stored) {
     try {
       const parsed = JSON.parse(stored) as User[]
       if (Array.isArray(parsed) && parsed.length) {
+        // 过滤旧缓存中的演示账号（林知夏 / 赵老师），仅保留 sysadmin 与用户自行注册的账号
+        const cleaned = parsed.filter((u) => !DEMO_ACCOUNTS.has(u.account))
         // 确保内置系统管理员始终存在，且不可被注册/篡改
-        const hasSysAdmin = parsed.some((u) => u.account === SYS_ADMIN_ACCOUNT)
-        if (hasSysAdmin) return parsed
-        return [sysAdminUser(), ...parsed]
+        const hasSysAdmin = cleaned.some((u) => u.account === SYS_ADMIN_ACCOUNT)
+        if (hasSysAdmin) return cleaned
+        return [sysAdminUser(), ...cleaned]
       }
     } catch {
       // ignore corrupted storage
     }
   }
-  return [
-    sysAdminUser(),
-    { account: '2023010218', password: '123456', name: '林知夏', label: '普通学生', role: 'student', disabled: false, contact: '13800000001' },
-    { account: 'teacher01', password: '123456', name: '赵老师', label: '失物招领管理员', role: 'itemAdmin', disabled: false, contact: '13800000002' }
-  ]
+  return [sysAdminUser()]
 }
 
 function sysAdminUser(): User {
@@ -156,9 +157,7 @@ function loadNotifications(): SystemNotification[] {
 
 function loadClaims(): Claim[] {
   const stored = localStorage.getItem('claims')
-  if (!stored) {
-    return [{ id: 1, itemId: 1, ownerId: '李同学', item: '黑色 AirPods Pro 2', applicantId: '2023010218', applicant: '林同学', description: '描述物品特征以供核验', contact: '13800000001', appliedAt: '2026-06-15T14:20:00.000Z', date: '06-15 14:20', status: '待审核' }]
-  }
+  if (!stored) return []
   try {
     const parsed: unknown = JSON.parse(stored)
     if (!Array.isArray(parsed)) return []
@@ -228,22 +227,17 @@ function loadClues(): Clue[] {
 }
 
 function seedItems(): Item[] {
-  return [
-    { id: 1, ownerId: '李同学', type: 'found', title: '黑色 AirPods Pro 2', tags: ['数码'], location: '图书馆三楼', date: '06-15', status: '待认领', author: '李同学', contact: '13800001234', color: 'ink', icon: '◉', desc: '在靠窗自习区拾到，已交至图书馆服务台。' },
-    { id: 2, ownerId: '周同学', type: 'lost', title: '蓝色帆布包', tags: ['日用', '书籍'], location: '南区食堂', date: '06-14', status: '招领中', author: '周同学', color: 'blue', icon: '▰', desc: '包内有一本《设计心理学》和校园卡。' },
-    { id: 3, ownerId: '拾光志愿者', type: 'found', title: '校园卡 · 陈知行', tags: ['证件'], location: '操场看台', date: '06-14', status: '待认领', author: '拾光志愿者', color: 'mint', icon: '▣', desc: '已核验姓名，等待失主联系。' },
-    { id: 4, ownerId: '王同学', type: 'lost', title: '银色保温杯', tags: ['日用'], location: '文科楼 204', date: '06-13', status: '招领中', author: '王同学', color: 'coral', icon: '◒', desc: '杯身有一枚小树贴纸，落款为 W。' },
-    { id: 5, ownerId: '拾光志愿者', type: 'found', title: '一串钥匙', tags: ['其他'], location: '西门快递站', date: '06-12', status: '已认领', author: '拾光志愿者', color: 'yellow', icon: '⌘', desc: '三把钥匙，附有蓝色小挂件。' }
-  ]
+  // 初始不再内置写死的假数据，物品完全由用户自行发布
+  return []
 }
 
 function loadItems(): Item[] {
   const stored = localStorage.getItem('items')
-  if (!stored) return seedItems()
+  if (!stored) return []
   try {
     const parsed: unknown = JSON.parse(stored)
-    if (!Array.isArray(parsed) || !parsed.length) return seedItems()
-    return parsed.map((entry) => {
+    if (!Array.isArray(parsed)) return []
+    const mapped: Item[] = parsed.map((entry) => {
       const record = typeof entry === 'object' && entry !== null ? entry as Record<string, unknown> : {}
       const status = typeof record.status === 'string' ? record.status as ItemStatus : '待审核'
       return {
@@ -264,8 +258,11 @@ function loadItems(): Item[] {
         reviewReason: typeof record.reviewReason === 'string' ? record.reviewReason : undefined
       }
     })
+    // 迁移清理：移除早期内置的写死种子数据（按 id + 标题特征识别，保留用户自行发布的数据）
+    const seedTitles = new Set(['黑色 AirPods Pro 2', '蓝色帆布包', '校园卡 · 陈知行', '银色保温杯', '一串钥匙'])
+    return mapped.filter((item) => !(item.id <= 5 && seedTitles.has(item.title)))
   } catch {
-    return seedItems()
+    return []
   }
 }
 
@@ -273,6 +270,8 @@ export const useAppStore = defineStore('app', () => {
   const role = ref<Role>((localStorage.getItem('role') as Role) || 'student')
   const editingItemId = ref<number | null>(null)
   const registeredUsers = ref<User[]>(seedUsers())
+  // 初始化后立即持久化：把过滤掉旧演示账号的用户列表写回 localStorage，避免刷新后"复活"
+  localStorage.setItem('registered_users', JSON.stringify(registeredUsers.value))
   const activeRoute = ref('home')
   const isAuthenticated = ref(localStorage.getItem('auth_token') === 'mock-token')
   const notices = ref<any[]>([
@@ -294,13 +293,10 @@ export const useAppStore = defineStore('app', () => {
   }
   const favoriteItemIds = ref<number[]>([])
   const likedItemIds = ref<number[]>([])
-  const comments = ref<Comment[]>([
-    { id: 1, itemId: 1, author: '林知夏', avatar: '林', date: '今天 09:24', content: '请问是在图书馆哪一侧的自习区找到的呢？', likes: 3, liked: false },
-    { id: 2, itemId: 1, author: '李同学', avatar: '李', date: '今天 09:31', content: '是在三楼靠窗的位置，已经交给服务台了。', likes: 5, liked: false, parentId: 1, replyTo: '林知夏' },
-    { id: 3, itemId: 2, author: '周同学', avatar: '周', date: '昨天 18:42', content: '如果有看到蓝色帆布包，麻烦帮忙留意一下，谢谢！', likes: 2, liked: false }
-  ])
+  const comments = ref<Comment[]>([])
 
-  const currentUser = computed(() => registeredUsers.value.find((u) => u.account === account.value) ?? seedUsers()[0])
+  const currentUser = computed(() => registeredUsers.value.find((u) => u.account === account.value)
+    ?? { account: '', password: '', name: '游客', label: '普通学生', role: 'student' as Role, disabled: false })
 
   function persistUsers() {
     localStorage.setItem('registered_users', JSON.stringify(registeredUsers.value))
@@ -580,7 +576,12 @@ export const useAppStore = defineStore('app', () => {
     if (!item) return
     item.status = item.status === '已关闭' ? '招领中' : '已关闭'
   }
-  function removeItem(id: number) { items.value = items.value.filter((entry) => entry.id !== id) }
+  /** 删除物品：从 items 移除，并级联删除该物品关联的认领申请与线索（同步 localStorage） */
+  function removeItem(id: number) {
+    items.value = items.value.filter((entry) => entry.id !== id)
+    claims.value = claims.value.filter((claim) => claim.itemId !== id)
+    clues.value = clues.value.filter((clue) => clue.itemId !== id)
+  }
   function toggleFavorite(id: number) {
     favoriteItemIds.value = favoriteItemIds.value.includes(id)
       ? favoriteItemIds.value.filter((itemId) => itemId !== id)

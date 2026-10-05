@@ -219,6 +219,8 @@ async function rejectClaim(claimId: number) {
         <template v-if="store.role === 'student'">
           <p v-if="item.status === '已认领'" class="claimed-notice">该物品已被认领</p>
           <p v-else-if="item.status === '已找回'" class="claimed-notice">该物品已确认找回</p>
+          <p v-else-if="item.status === '已关闭'" class="claimed-notice">该物品已下架，暂不可操作</p>
+          <p v-else-if="item.status === '已驳回'" class="claimed-notice">该物品信息未通过审核</p>
           <button v-else-if="isOwner && item.type === 'lost'" type="button" class="primary-btn full-btn manage-claims-btn" @click="openOwnerClues">查看线索</button>
           <button v-else-if="isOwner" type="button" class="primary-btn full-btn manage-claims-btn" @click="ownerClaimsDialogVisible = true">管理认领申请</button>
           <button v-else-if="item.type === 'lost'" type="button" class="primary-btn full-btn clue-btn" @click="openClueForm">提供线索</button>

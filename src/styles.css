@@ -44,7 +44,7 @@
 @media(max-width:700px){.manage-toolbar{flex-wrap:wrap}.manage-search{flex-basis:100%}.manage-toolbar .el-select{flex:1;width:auto}.manage-table-wrap{overflow-x:auto}.manage-pagination{justify-content:center}}
 
 /* ===== 发现物品筛选栏 ===== */
-.filter-form{background:#f4f7f4;border:1px solid var(--line);border-radius:12px;padding:18px 20px 8px;margin-bottom:24px}.filter-form .el-form-item{margin-bottom:14px}.filter-form .el-form-item__label{color:var(--green);font-weight:600;font-size:12px;line-height:1.4;padding-bottom:6px}.filter-form .el-input__wrapper,.filter-form .el-select__wrapper{width:100%;background:#fff}.filter-form .el-select{width:100%}.filter-form .el-form-item__content{width:100%}@media(max-width:700px){.filter-form{padding:14px 14px 4px}}
+.filter-form{background:#f4f7f4;border:1px solid var(--line);border-radius:12px;padding:18px 20px 8px;margin-bottom:24px}.filter-form .el-form-item{margin-bottom:18px}.filter-form .el-form-item__label{color:var(--green);font-weight:600;font-size:16px;line-height:1.4;padding-bottom:8px;display:block;white-space:nowrap}.filter-form .el-input__wrapper,.filter-form .el-select__wrapper{width:100%;background:#fff}.filter-form .el-select{width:100%}.filter-form .el-form-item__content{width:100%}@media(max-width:700px){.filter-form{padding:14px 14px 4px}}
 
 /* ===== 发现物品分页器 ===== */
 .pagination-box{display:flex;justify-content:center;align-items:center;margin-top:24px;padding:8px 0 32px}.pagination-box .el-pagination{flex-wrap:wrap;row-gap:10px}
