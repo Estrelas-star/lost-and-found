@@ -113,6 +113,7 @@ async function submitPost() {
       }
       resetForm()
       ElMessage.success('发布成功，所有人可在首页看到')
+      store.activeRoute = 'posts'  // 发布成功后自动跳转到“我的发布”
     } catch (e) {
       ElMessage.error((e as Error).message || '发布失败，请重试')
     }
