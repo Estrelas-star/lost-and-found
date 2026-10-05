@@ -102,23 +102,43 @@ const currentNotifications = computed(() => store.notifications
   .filter((notification) => notification.recipientId === store.account || notification.recipientName === store.currentUser.name)
   .sort((first, second) => second.id - first.id))
 const unreadNotificationCount = computed(() => currentNotifications.value.filter((notification) => !notification.read).length)
-const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
-const auditStatusFilter = ref<'全部' | '待审核'>('全部')
-const auditTypeFilter = ref<'全部' | ItemType>('全部')
-const auditSearch = ref('')
-const auditPage = ref(1)
-const auditPageSize = ref(6)
-const rejectDialogVisible = ref(false)
-const rejectReason = ref('')
-const rejectingItemId = ref<number | null>(null)
-const auditItems = computed(() => pendingItems.value.filter((item) => {
-  const matchesStatus = auditStatusFilter.value === '全部' || item.status === auditStatusFilter.value
-  const matchesType = auditTypeFilter.value === '全部' || item.type === auditTypeFilter.value
-  const matchesSearch = `${item.title}${item.author}${item.location}${item.tags.join(' ')}`.toLowerCase().includes(auditSearch.value.trim().toLowerCase())
-  return matchesStatus && matchesType && matchesSearch
-}))
-const paginatedAuditItems = computed(() => auditItems.value.slice((auditPage.value - 1) * auditPageSize.value, auditPage.value * auditPageSize.value))
-const stats = computed(() => ({ total: store.items.length + 26, returned: store.items.filter((item) => item.status === '已认领').length + 18, pending: pendingItems.value.length + 8, rate: '68%' }))
+/** 我的认领 - 查看联系方式弹窗：发布者联系方式（从认领对应物品的 contact 取） */
+const contactRevealDialogVisible = ref(false)
+/** 我的认领 - 查看联系方式弹窗：当前要展示的联系方式 */
+const selectedClaimContact = ref('')
+/** 我的认领 - 查看联系方式弹窗：隐私承诺勾选状态 */
+const claimContactPromiseAgreed = ref(false)
+/** 我的认领 - 查看联系方式弹窗：是否已复制 */
+const claimContactCopied = ref(false)
+/** 打开"我的认领"的联系方式弹窗：从认领记录找到对应物品，取其 contact 字段 */
+function openClaimContact(claimItem: (typeof store.claims)[number]) {
+  const item = store.items.find((entry) => entry.id === claimItem.itemId)
+  selectedClaimContact.value = item?.contact?.trim() ?? '暂未提供'
+  claimContactPromiseAgreed.value = false
+  claimContactCopied.value = false
+  contactRevealDialogVisible.value = true
+}
+/** 勾选承诺后复制发布者联系方式 */
+function copyClaimContact() {
+  if (!claimContactPromiseAgreed.value) {
+    ElMessage.warning('请先勾选承诺，再查看发布者联系方式')
+    return
+  }
+  const contact = selectedClaimContact.value
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(contact).then(() => {
+      claimContactCopied.value = true
+      ElMessage.success('联系方式已复制到剪贴板')
+    }).catch(() => {
+      claimContactCopied.value = true
+      ElMessage.success('联系方式已展示')
+    })
+  } else {
+    claimContactCopied.value = true
+    ElMessage.success('联系方式已展示')
+  }
+}
+const stats = computed(() => ({ total: store.items.length + 26, returned: store.items.filter((item) => item.status === '已认领').length + 18, rate: '68%' }))
 const buildingOptions = computed(() => Object.keys(locationTree[locationSelections.value.campus as keyof typeof locationTree] ?? {}))
 const areaOptions = computed(() => (locationSelections.value.campus && locationSelections.value.building ? locationTree[locationSelections.value.campus as keyof typeof locationTree][locationSelections.value.building as keyof typeof locationTree[keyof typeof locationTree]] ?? [] : []))
 
@@ -128,8 +148,6 @@ watch([filter, categoryFilter, locationFilter, timeFilter, search], () => {
 watch(selectedItem, (item) => {
   if (item) detailDialogVisible.value = true
 })
-watch([auditStatusFilter, auditTypeFilter, auditSearch], () => { auditPage.value = 1 })
-
 const roleHome = { student: 'home', itemAdmin: 'audit', systemAdmin: 'dashboard' } as const
 
 watch(() => route.meta.page, (page) => {
@@ -344,22 +362,6 @@ function claim(item: Item) {
   flash('认领申请已提交，请等待审核')
 }
 
-function openRejectDialog(id: number) {
-  rejectingItemId.value = id
-  rejectReason.value = ''
-  rejectDialogVisible.value = true
-}
-
-function submitReject() {
-  if (!rejectingItemId.value || !rejectReason.value.trim()) {
-    flash('请填写驳回原因')
-    return
-  }
-  store.reject(rejectingItemId.value, rejectReason.value.trim())
-  rejectDialogVisible.value = false
-  flash('已驳回该信息')
-}
-
 /* ===== 账号管理 ===== */
 function roleLabel(role: unknown): string {
   return ROLE_LABELS[role as Role] ?? '未知'
@@ -407,7 +409,7 @@ function toggleDisabled(user: User) {
       </div>
       <nav>
         <p class="nav-caption">{{ roleLabels[store.role] }}</p>
-        <button v-for="item in visibleNavItems" :key="item.key" class="nav-item" :class="{ active: store.activeRoute === item.key }" @click="go(item.key)"><span>{{ item.icon }}</span>{{ item.label }}<b v-if="item.key === 'audit' && pendingItems.length">{{ pendingItems.length }}</b></button>
+        <button v-for="item in visibleNavItems" :key="item.key" class="nav-item" :class="{ active: store.activeRoute === item.key }" @click="go(item.key)"><span>{{ item.icon }}</span>{{ item.label }}</button>
       </nav>
       <div class="sidebar-bottom"><button class="help-link" @click="flash('帮助中心即将上线')">? <span>帮助与反馈</span></button><div class="version">拾光 v1.0 · 让每件物品回家</div></div>
     </aside>
@@ -490,21 +492,36 @@ function toggleDisabled(user: User) {
               <div v-for="item in myItems" :key="item.id" class="table-row"><div class="mini-visual" :class="item.color">{{ item.icon }}</div><div class="row-main"><strong>{{ item.title }}</strong><small>{{ item.location }} · {{ item.date }}</small></div><span class="status-pill" :class="{ 'status-pill-withdrawn': item.status === '已撤回', 'status-pill-recovered': item.status === '已找回' }">{{ item.status }}</span><button class="text-btn" @click="openItem(item)">查看详情</button><button v-if="item.status === '待审核' || item.status === '已撤回'" class="text-btn" @click="editItem(item)">{{ item.status === '已撤回' ? '重新发布' : '编辑' }}</button><button v-if="item.type === 'lost' && (item.status === '招领中' || item.status === '待认领')" class="text-btn confirm-recovered-btn" @click="confirmRecovered(item)">确认找回</button></div>
             </template>
             <template v-else>
-              <div v-for="claimItem in visibleClaims" :key="claimItem.id" class="table-row"><div class="mini-visual blue">♡</div><div class="row-main"><strong>{{ claimItem.item }}</strong><small>{{ claimItem.date }} · 申请人：{{ claimItem.applicant }}</small><small v-if="claimItem.rejectionReason" class="claim-rejection-reason">驳回原因：{{ claimItem.rejectionReason }}</small></div><span class="status-pill">{{ claimItem.status }}</span></div>
+              <div v-for="claimItem in visibleClaims" :key="claimItem.id" class="table-row"><div class="mini-visual blue">♡</div><div class="row-main"><strong>{{ claimItem.item }}</strong><small>{{ claimItem.date }} · 申请人：{{ claimItem.applicant }}</small><small v-if="claimItem.rejectionReason" class="claim-rejection-reason">驳回原因：{{ claimItem.rejectionReason }}</small></div><span class="status-pill">{{ claimItem.status }}</span><button class="text-btn claim-contact-btn" @click="openClaimContact(claimItem)">查看联系方式</button></div>
             </template>
             <div v-if="(store.activeRoute === 'posts' ? myItems : visibleClaims).length === 0" class="empty-state">这里还没有记录</div>
           </div>
         </section>
 
-        <section v-else-if="store.activeRoute === 'audit'" class="page-section audit-page"><div class="section-intro"><span class="eyebrow">OPERATIONS</span><h1>审核中心</h1><p>集中处理新提交的失物招领信息。</p></div><div class="metrics"><MetricCard label="待处理审核" :value="pendingItems.length" trend="需要你的判断" tone="mint"/><MetricCard label="本周已处理" value="32" trend="较上周 +12%" tone="yellow"/><MetricCard label="当前筛选结果" :value="auditItems.length" trend="实时更新" tone="blue"/></div><div class="audit-toolbar"><el-input v-model="auditSearch" clearable placeholder="搜索物品名称、发布者或地点" class="audit-search"/><el-select v-model="auditStatusFilter" placeholder="按状态"><el-option label="全部状态" value="全部"/><el-option label="待审核" value="待审核"/></el-select><el-select v-model="auditTypeFilter" placeholder="按类型"><el-option label="全部类型" value="全部"/><el-option label="寻物" value="lost"/><el-option label="招领" value="found"/></el-select></div><div class="audit-table-wrap"><el-table :data="auditItems" stripe empty-text="暂无待审核信息"><el-table-column label="图片" width="82"><template #default="{ row }"><div class="audit-thumb" :class="row.color"><img v-if="row.images?.[0]" :src="row.images[0]" alt="物品图片"/><span v-else>{{ row.icon }}</span></div></template></el-table-column><el-table-column prop="title" label="物品名称" min-width="170"/><el-table-column label="分类" min-width="130"><template #default="{ row }"><div class="audit-tags"><el-tag v-for="tag in row.tags" :key="tag" size="small">{{ tag }}</el-tag></div></template></el-table-column><el-table-column prop="author" label="发布者" min-width="100"/><el-table-column prop="date" label="发布时间" min-width="100"/><el-table-column label="当前状态" min-width="100"><template #default="{ row }"><el-tag type="warning">{{ row.status }}</el-tag></template></el-table-column><el-table-column label="操作" fixed="right" width="160"><template #default="{ row }"><el-button type="success" link @click="store.approve(row.id); flash('已通过审核')">通过</el-button><el-button type="danger" link @click="flash('驳回功能下一步接入')">驳回</el-button></template></el-table-column></el-table></div></section>
-
-        <section v-else-if="store.activeRoute === 'dashboard'" class="page-section"><div class="section-intro"><span class="eyebrow">OVERVIEW · JUNE 2026</span><h1>校园失物招领总览</h1><p>数据会说话，看看校园里正在发生什么。</p></div><div class="metrics"><MetricCard label="累计发布" :value="stats.total" trend="较上月 +18%" tone="mint"/><MetricCard label="成功归还" :value="stats.returned" trend="归还率持续提升" tone="yellow"/><MetricCard label="待处理" :value="stats.pending" trend="今日需关注" tone="coral"/><MetricCard label="总体归还率" :value="stats.rate" trend="较上月 +6.4%" tone="blue"/></div><div class="dashboard-grid"><div class="chart-panel"><div class="panel-head"><h2>近 30 日趋势</h2><span>发布量 / 归还量</span></div><div class="fake-chart"><div v-for="(height, index) in [38, 56, 48, 72, 62, 80, 68, 92, 76, 88, 72, 96]" :key="index" class="bar-group"><i :style="{ height: height + '%' }"></i><b :style="{ height: height * .62 + '%' }"></b></div></div><div class="chart-labels"><span>05.19</span><span>05.26</span><span>06.02</span><span>06.09</span><span>06.16</span></div></div><div class="ranking-panel"><div class="panel-head"><h2>高频地点</h2><span>发布数量</span></div><div v-for="(place, index) in [['图书馆', 42], ['南区食堂', 36], ['体育馆', 29], ['教学楼', 21]]" :key="place[0]" class="rank-row"><span>0{{ index + 1 }}</span><strong>{{ place[0] }}</strong><i><b :style="{ width: place[1] * 2 + '%' }"></b></i><em>{{ place[1] }}</em></div></div></div></section>
+        <section v-else-if="store.activeRoute === 'dashboard'" class="page-section"><div class="section-intro"><span class="eyebrow">OVERVIEW · JUNE 2026</span><h1>校园失物招领总览</h1><p>数据会说话，看看校园里正在发生什么。</p></div><div class="metrics"><MetricCard label="累计发布" :value="stats.total" trend="较上月 +18%"/><MetricCard label="成功归还" :value="stats.returned" trend="归还率持续提升" tone="yellow"/><MetricCard label="总体归还率" :value="stats.rate" trend="较上月 +6.4%" tone="blue"/></div><div class="dashboard-grid"><div class="chart-panel"><div class="panel-head"><h2>近 30 日趋势</h2><span>发布量 / 归还量</span></div><div class="fake-chart"><div v-for="(height, index) in [38, 56, 48, 72, 62, 80, 68, 92, 76, 88, 72, 96]" :key="index" class="bar-group"><i :style="{ height: height + '%' }"></i><b :style="{ height: height * .62 + '%' }"></b></div></div><div class="chart-labels"><span>05.19</span><span>05.26</span><span>06.02</span><span>06.09</span><span>06.16</span></div></div><div class="ranking-panel"><div class="panel-head"><h2>高频地点</h2><span>发布数量</span></div><div v-for="(place, index) in [['图书馆', 42], ['南区食堂', 36], ['体育馆', 29], ['教学楼', 21]]" :key="place[0]" class="rank-row"><span>0{{ index + 1 }}</span><strong>{{ place[0] }}</strong><i><b :style="{ width: place[1] * 2 + '%' }"></b></i><em>{{ place[1] }}</em></div></div></div></section>
 
         <section v-else-if="store.activeRoute === 'users'" class="page-section users-page"><div class="section-intro"><span class="eyebrow">SYSTEM SETTINGS</span><h1>{{ pageTitle }}</h1><p>管理校园账号、角色与访问权限。</p></div><div class="manage-table-wrap"><el-table :data="store.registeredUsers" style="width: 100%"><el-table-column label="账号" prop="account" min-width="120" /><el-table-column label="昵称" min-width="120"><template #default="{ row }"><strong>{{ row.name }}</strong></template></el-table-column><el-table-column label="角色" min-width="140"><template #default="{ row }"><el-tag :type="row.role === 'systemAdmin' ? 'danger' : row.role === 'itemAdmin' ? 'warning' : 'success'" effect="light">{{ roleLabel(row.role) }}</el-tag></template></el-table-column><el-table-column label="状态" min-width="100"><template #default="{ row }"><el-tag :type="row.disabled ? 'info' : 'success'" effect="plain">{{ row.disabled ? '已禁用' : '正常' }}</el-tag></template></el-table-column><el-table-column label="操作" min-width="200"><template #default="{ row }"><el-button type="primary" link :disabled="row.account === 'sysadmin'" @click="openRoleDialog(row)">修改角色</el-button><el-button :type="row.disabled ? 'success' : 'warning'" link :disabled="row.account === 'sysadmin'" @click="toggleDisabled(row)">{{ row.disabled ? '启用' : '禁用' }}</el-button></template></el-table-column></el-table></div></section>
 
         <section v-else-if="store.activeRoute === 'notices'" class="page-section"><div class="section-intro"><span class="eyebrow">SYSTEM SETTINGS</span><h1>{{ pageTitle }}</h1><p>让重要消息抵达每一位同学。</p></div><div class="table-panel"><div v-for="row in store.notices" :key="row.id || row.title" class="table-row"><div class="mini-visual mint">✦</div><div class="row-main"><strong>{{ row.title }}</strong><small>{{ row.date }} · 公告内容管理</small></div><span class="status-pill">{{ row.tag }}</span><button class="text-btn" @click="flash('编辑功能已打开')">编辑</button></div></div></section>
       </div>
     </main>
+    <!-- 我的认领 - 查看发布者联系方式弹窗（仅允许通过 X 关闭，防误触） -->
+    <el-dialog v-model="contactRevealDialogVisible" title="查看发布者联系方式" width="min(480px, 94vw)" :close-on-click-modal="false" :close-on-press-escape="false">
+      <div class="claim-contact-step">
+        <p class="claim-contact-tip">为保障双方权益，请先确认以下承诺：</p>
+        <label class="claim-promise-box" :class="{ 'promise-checked': claimContactPromiseAgreed }">
+          <el-checkbox v-model="claimContactPromiseAgreed">我承诺仅将该联系方式用于找回该物品，绝不恶意骚扰</el-checkbox>
+        </label>
+        <div v-if="claimContactPromiseAgreed" class="claim-contact-reveal">
+          <span class="claim-contact-label">发布者联系方式</span>
+          <div class="claim-contact-row">
+            <strong class="claim-contact-value">{{ selectedClaimContact }}</strong>
+            <button type="button" class="claim-copy-btn" @click="copyClaimContact">{{ claimContactCopied ? '已复制 ✓' : '一键复制' }}</button>
+          </div>
+        </div>
+        <p v-else class="claim-promise-hint">请先勾选上方承诺，再查看发布者联系方式</p>
+      </div>
+    </el-dialog>
     <el-dialog v-model="itemCluesDialogVisible" :title="`${selectedCluesItem?.title ?? ''} · 收到的线索`" width="min(560px, 94vw)" @closed="onItemCluesDialogClosed">
       <div v-if="selectedItemClues.length" class="owner-claim-list">
         <article v-for="clue in selectedItemClues" :key="clue.id" class="owner-claim-item">

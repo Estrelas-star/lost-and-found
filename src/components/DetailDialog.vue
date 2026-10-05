@@ -16,8 +16,13 @@ const ownerCluesDialogVisible = ref(false)
 const reportDialogVisible = ref(false)
 const claimDescription = ref('')
 const proofFiles = ref<any[]>([])
+/** 申请认领弹窗当前步骤：'form' 填写认领说明 | 'contact' 勾选承诺后展示发布者联系方式 */
+const claimStep = ref<'form' | 'contact'>('form')
+/** 申请端承诺勾选框状态 */
+const promiseAgreed = ref(false)
+/** 发布者联系方式是否已复制 */
+const contactCopied = ref(false)
 const clueDescription = ref('')
-const clueContact = ref('')
 const clueFiles = ref<any[]>([])
 const reportReason = ref('')
 const reportDescription = ref('')
@@ -64,16 +69,52 @@ function submitClaim() {
     ElMessage.warning('请填写认领说明')
     return
   }
-  store.submitClaim(props.item, { description: claimDescription.value })
-  claimDialogVisible.value = false
+  const ok = store.submitClaim(props.item, { description: claimDescription.value })
+  if (!ok) {
+    ElMessage.warning('您已提交过申请，请勿重复提交')
+    return
+  }
+  // 不关闭弹窗，切换到"展示联系方式"步骤；重置承诺状态
+  claimStep.value = 'contact'
+  promiseAgreed.value = false
+  contactCopied.value = false
+  ElMessage.success('认领申请已提交，请按提示查看发布者联系方式')
+}
+
+/** 勾选承诺后查看并复制发布者联系方式 */
+function copyPublisherContact() {
+  if (!props.item) return
+  if (!promiseAgreed.value) {
+    ElMessage.warning('请先勾选承诺，再查看发布者联系方式')
+    return
+  }
+  const contact = props.item.contact?.trim() || '暂未提供'
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(contact).then(() => {
+      contactCopied.value = true
+      ElMessage.success('联系方式已复制到剪贴板')
+    }).catch(() => {
+      contactCopied.value = true
+      ElMessage.success('联系方式已展示')
+    })
+  } else {
+    contactCopied.value = true
+    ElMessage.success('联系方式已展示')
+  }
+}
+
+/** 重新打开申请认领弹窗时重置为表单步骤 */
+function openClaimDialog() {
+  claimStep.value = 'form'
+  promiseAgreed.value = false
+  contactCopied.value = false
   claimDescription.value = ''
   proofFiles.value = []
-  ElMessage.success('认领申请已提交，请等待审核')
+  claimDialogVisible.value = true
 }
 
 function openClueForm() {
   clueDescription.value = ''
-  clueContact.value = store.currentUser.contact ?? ''
   clueFiles.value = []
   clueDialogVisible.value = true
 }
@@ -84,14 +125,11 @@ function submitClue() {
     ElMessage.warning('请填写线索描述')
     return
   }
-  if (!clueContact.value.trim()) {
-    ElMessage.warning('请填写联系方式')
-    return
-  }
   const clueImages = clueFiles.value
     .map((file) => file.url || (file.raw ? URL.createObjectURL(file.raw) : ''))
     .filter(Boolean)
-  store.submitClue(props.item, { description: clueDescription.value, contact: clueContact.value, images: clueImages })
+  // 静默提交当前登录用户的联系方式（前端界面不展示联系方式输入框）
+  store.submitClue(props.item, { description: clueDescription.value, contact: store.currentUser.contact ?? '', images: clueImages })
   clueDialogVisible.value = false
   clueDescription.value = ''
   clueFiles.value = []
@@ -137,6 +175,36 @@ async function withdrawItem() {
     ElMessage.success('已撤回')
   } catch { /* 用户取消 */ }
 }
+
+/** 发布者同意某条认领申请（带二次确认） */
+async function approveClaim(claimId: number) {
+  if (!props.item) return
+  try {
+    await ElMessageBox.confirm('确认物品已归还给该申请人吗？确认后其他申请将自动失效。', '同意认领', {
+      type: 'warning',
+      confirmButtonText: '确认归还',
+      cancelButtonText: '取消'
+    })
+  } catch { return }
+  store.approveClaim(claimId)
+  ownerClaimsDialogVisible.value = false
+  ElMessage.success('已同意该认领申请，物品已标记为已认领')
+}
+
+/** 发布者拒绝某条认领申请 */
+async function rejectClaim(claimId: number) {
+  if (!props.item) return
+  try {
+    await ElMessageBox.confirm('确定拒绝该申请人的认领申请吗？', '拒绝认领', {
+      type: 'warning',
+      confirmButtonText: '确认拒绝',
+      cancelButtonText: '取消'
+    })
+  } catch { return }
+  store.rejectClaim(claimId)
+  ownerClaimsDialogVisible.value = false
+  ElMessage.success('已拒绝该认领申请')
+}
 </script>
 
 <template>
@@ -152,22 +220,32 @@ async function withdrawItem() {
           <p v-if="item.status === '已认领'" class="claimed-notice">该物品已被认领</p>
           <p v-else-if="item.status === '已找回'" class="claimed-notice">该物品已确认找回</p>
           <button v-else-if="isOwner && item.type === 'lost'" type="button" class="primary-btn full-btn manage-claims-btn" @click="openOwnerClues">查看线索</button>
-          <button v-else-if="isOwner" type="button" class="primary-btn full-btn manage-claims-btn" @click="ownerClaimsDialogVisible = true">管理认领申请 <span>{{ ownerClaims.length }}</span></button>
+          <button v-else-if="isOwner" type="button" class="primary-btn full-btn manage-claims-btn" @click="ownerClaimsDialogVisible = true">管理认领申请</button>
           <button v-else-if="item.type === 'lost'" type="button" class="primary-btn full-btn clue-btn" @click="openClueForm">提供线索</button>
-          <el-tooltip v-else :disabled="canClaim" content="该物品当前不可申请认领"><span class="claim-btn-wrap"><button type="button" class="primary-btn full-btn" :disabled="!canClaim" @click="canClaim && (claimDialogVisible = true)">申请认领</button></span></el-tooltip>
+          <el-tooltip v-else :disabled="canClaim" content="该物品当前不可申请认领"><span class="claim-btn-wrap"><button type="button" class="primary-btn full-btn" :disabled="!canClaim" @click="canClaim && openClaimDialog()">申请认领</button></span></el-tooltip>
         </template>
       </div>
     </div>
   </el-dialog>
-  <el-dialog v-model="ownerClaimsDialogVisible" title="该物品的认领申请" width="min(520px, 94vw)">
-    <div v-if="ownerClaims.length" class="owner-claim-list">
-      <article v-for="claim in ownerClaims" :key="claim.id" class="owner-claim-item">
-        <div class="owner-claim-heading"><strong>{{ claim.applicant }}</strong><time>{{ claim.date }}</time></div>
-        <p>{{ claim.description || '未填写认领说明' }}</p>
-        <small>联系方式：{{ claim.contact || '未提供' }}</small>
+  <el-dialog v-model="ownerClaimsDialogVisible" title="管理认领申请" width="min(620px, 94vw)">
+    <div class="owner-claims-manage">
+      <article v-for="claim in ownerClaims" :key="claim.id" class="owner-claim-card">
+        <div class="owner-claim-card-head">
+          <div class="owner-claim-applicant"><span class="owner-claim-avatar">{{ claim.applicant.slice(0, 1) }}</span><div><strong>{{ claim.applicant }}</strong><time>申请时间：{{ claim.date }}</time></div></div>
+          <el-tag :type="claim.status === '已通过' ? 'success' : claim.status === '已驳回' ? 'danger' : 'warning'" effect="light" size="small">{{ claim.status === '已通过' ? '已通过' : claim.status === '已驳回' ? '已拒绝' : '待处理' }}</el-tag>
+        </div>
+        <div class="owner-claim-fields">
+          <div class="owner-claim-field"><span class="owner-claim-label">认领说明</span><p class="owner-claim-desc">{{ claim.description || '未填写认领说明' }}</p></div>
+          <div class="owner-claim-field"><span class="owner-claim-label">联系方式</span><span class="owner-claim-contact">{{ claim.contact || '未提供' }}</span></div>
+          <div v-if="claim.rejectionReason" class="owner-claim-field"><span class="owner-claim-label">处理备注</span><span class="owner-claim-reason">{{ claim.rejectionReason }}</span></div>
+        </div>
+        <div class="owner-claim-actions">
+          <button type="button" class="claim-action-btn reject" @click="rejectClaim(claim.id)">拒绝</button>
+          <button type="button" class="claim-action-btn approve" @click="approveClaim(claim.id)">同意认领</button>
+        </div>
       </article>
+      <el-empty v-if="!ownerClaims.length" description="暂时没有认领申请" :image-size="72" />
     </div>
-    <el-empty v-else description="暂时没有认领申请" :image-size="72" />
   </el-dialog>
   <el-dialog v-model="ownerCluesDialogVisible" title="该物品收到的线索" width="min(520px, 94vw)" @closed="onOwnerCluesDialogClosed">
     <div v-if="ownerClues.length" class="owner-claim-list">
@@ -183,11 +261,34 @@ async function withdrawItem() {
   <el-dialog v-model="clueDialogVisible" title="提供线索" width="min(460px, 92vw)">
     <el-form label-position="top">
       <el-form-item label="线索描述" required><el-input v-model="clueDescription" type="textarea" :rows="4" placeholder="描述你发现的线索或可能的物品位置" maxlength="300" show-word-limit /></el-form-item>
-      <el-form-item label="联系方式" required><el-input v-model="clueContact" placeholder="手机号或微信号" maxlength="80" /></el-form-item>
       <el-form-item label="上传物品照片"><el-upload v-model:file-list="clueFiles" action="#" list-type="picture-card" :auto-upload="false" accept="image/*"><span>＋</span></el-upload></el-form-item>
       <el-button type="primary" class="dialog-submit" @click="submitClue">提交线索</el-button>
     </el-form>
   </el-dialog>
-  <el-dialog v-model="claimDialogVisible" title="申请认领" width="min(460px, 92vw)"><el-form label-position="top"><el-form-item label="认领说明" required><el-input v-model="claimDescription" type="textarea" :rows="4" placeholder="请描述物品特征、遗失时间等证明信息" maxlength="300" show-word-limit /></el-form-item><el-form-item label="证明材料图片"><el-upload v-model:file-list="proofFiles" action="#" list-type="picture-card" :auto-upload="false" accept="image/*"><span>＋</span></el-upload></el-form-item><el-button type="primary" class="dialog-submit" @click="submitClaim">提交申请</el-button></el-form></el-dialog>
+  <el-dialog v-model="claimDialogVisible" :title="claimStep === 'form' ? '申请认领' : '查看发布者联系方式'" width="min(480px, 94vw)" destroy-on-close :close-on-click-modal="false" :close-on-press-escape="false">
+    <!-- 第一步：填写认领说明 -->
+    <div v-if="claimStep === 'form'" class="claim-form-step">
+      <el-form label-position="top">
+        <el-form-item label="认领说明" required><el-input v-model="claimDescription" type="textarea" :rows="4" placeholder="请描述物品特征、遗失时间等证明信息" maxlength="300" show-word-limit /></el-form-item>
+        <el-form-item label="证明材料图片"><el-upload v-model:file-list="proofFiles" action="#" list-type="picture-card" :auto-upload="false" accept="image/*"><span>＋</span></el-upload></el-form-item>
+        <el-button type="primary" class="dialog-submit" @click="submitClaim">提交申请</el-button>
+      </el-form>
+    </div>
+    <!-- 第二步：勾选承诺后展示发布者联系方式 -->
+    <div v-else class="claim-contact-step">
+      <p class="claim-contact-tip">申请已提交成功！为保障双方权益，请先确认以下承诺：</p>
+      <label class="claim-promise-box" :class="{ 'promise-checked': promiseAgreed }">
+        <el-checkbox v-model="promiseAgreed">我承诺仅将该联系方式用于找回该物品，绝不恶意骚扰</el-checkbox>
+      </label>
+      <div v-if="promiseAgreed" class="claim-contact-reveal">
+        <span class="claim-contact-label">发布者联系方式</span>
+        <div class="claim-contact-row">
+          <strong class="claim-contact-value">{{ item?.contact?.trim() || '暂未提供' }}</strong>
+          <button type="button" class="claim-copy-btn" @click="copyPublisherContact">{{ contactCopied ? '已复制 ✓' : '一键复制' }}</button>
+        </div>
+      </div>
+      <p v-else class="claim-promise-hint">请先勾选上方承诺，再查看发布者联系方式</p>
+    </div>
+  </el-dialog>
   <el-dialog v-model="reportDialogVisible" title="举报信息" width="min(420px, 92vw)"><el-form label-position="top"><el-form-item label="举报原因" required><el-select v-model="reportReason" placeholder="请选择举报原因" class="dialog-control"><el-option label="虚假信息" value="虚假信息" /><el-option label="违规内容" value="违规内容" /><el-option label="恶意行为" value="恶意行为" /><el-option label="其他" value="其他" /></el-select></el-form-item><el-form-item label="补充说明"><el-input v-model="reportDescription" type="textarea" :rows="3" placeholder="补充描述举报原因（可选）" maxlength="200" show-word-limit /></el-form-item><el-button type="primary" class="dialog-submit" @click="submitReport">提交举报</el-button></el-form></el-dialog>
 </template>

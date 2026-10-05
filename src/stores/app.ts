@@ -149,7 +149,7 @@ function loadClaims(): Claim[] {
   try {
     const parsed: unknown = JSON.parse(stored)
     if (!Array.isArray(parsed)) return []
-    return parsed.map((entry, index) => {
+    const claims = parsed.map((entry, index) => {
       const record = typeof entry === 'object' && entry !== null ? entry as Record<string, unknown> : {}
       const appliedAt = typeof record.appliedAt === 'string' ? record.appliedAt : typeof record.date === 'string' ? record.date : ''
       const status: ClaimStatus = record.status === '已通过' || record.status === '已驳回' ? record.status : '待审核'
@@ -169,6 +169,16 @@ function loadClaims(): Claim[] {
         status
       }
     })
+    // 清洗历史脏数据：同一申请人(itemId+applicantId)只保留最新一条申请
+    const seen = new Set<string>()
+    const deduped: Claim[] = []
+    for (const claim of claims) {
+      const key = `${claim.itemId}-${claim.applicantId}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      deduped.push(claim)
+    }
+    return deduped
   } catch {
     return []
   }
@@ -278,7 +288,6 @@ export const useAppStore = defineStore('app', () => {
   ])
 
   const currentUser = computed(() => registeredUsers.value.find((u) => u.account === account.value) ?? seedUsers()[0])
-  const pendingCount = computed(() => items.value.filter((item) => item.status === '待审核').length + claims.value.filter((claim) => claim.status === '待审核').length)
 
   function persistUsers() {
     localStorage.setItem('registered_users', JSON.stringify(registeredUsers.value))
@@ -377,7 +386,10 @@ export const useAppStore = defineStore('app', () => {
     return true
   }
   function submitClaim(item: Item, application: { description?: string; contact?: string } = {}) {
-    if (item.ownerId === currentUser.value.account) return
+    if (item.ownerId === currentUser.value.account) return false
+    // 去重：同一用户对同一物品只能提交一次认领申请
+    const alreadyClaimed = claims.value.some((claim) => claim.itemId === item.id && claim.applicantId === currentUser.value.account && claim.status !== '已驳回')
+    if (alreadyClaimed) return false
     const appliedAt = new Date().toISOString()
     claims.value.unshift({
       id: Date.now(),
@@ -393,6 +405,17 @@ export const useAppStore = defineStore('app', () => {
       status: '待审核'
     })
     item.status = '待认领'
+    notifications.value.unshift({
+      id: Date.now(),
+      recipientId: item.ownerId,
+      recipientName: item.author,
+      message: `您发布的【${item.title}】收到了新的认领申请，请及时处理`,
+      createdAt: new Date(appliedAt).toLocaleString('zh-CN'),
+      read: false,
+      kind: 'claim',
+      itemId: item.id
+    })
+    return true
   }
   function submitClue(item: Item, clue: { description: string; contact: string; images: string[] }) {
     if (item.type !== 'lost' || item.ownerId === currentUser.value.account) return
@@ -431,38 +454,67 @@ export const useAppStore = defineStore('app', () => {
     item.status = '已驳回'
     item.reviewReason = reason
   }
-  function updateClaim(id: number, status: ClaimStatus, rejectionReason = '') {
+  /** 发布者同意某条认领申请：该申请通过，其余申请自动失效，物品置为已认领，并通知所有申请人 */
+  function approveClaim(id: number) {
     const claim = claims.value.find((entry) => entry.id === id)
-    if (!claim || claim.status !== '待审核') return
-    claim.status = status
-    claim.rejectionReason = status === '已驳回' ? rejectionReason.trim() : undefined
+    if (!claim || claim.status === '已通过' || claim.status === '已驳回') return
     const item = items.value.find((entry) => entry.id === claim.itemId)
     if (!item) return
-    if (status === '已通过') {
-      item.status = '已认领'
-      claim.publisherContact = item.contact?.trim() ?? ''
-      const approvedAt = new Date().toLocaleString('zh-CN')
-      const publisher = registeredUsers.value.find((user) => user.name === item.author)
+    // 1) 该申请通过并写入发布者联系方式快照
+    claim.status = '已通过'
+    claim.publisherContact = item.contact?.trim() ?? ''
+    // 2) 其余申请自动失效（置为已驳回）
+    const others = claims.value.filter((entry) => entry.itemId === item.id && entry.id !== id && entry.status === '待审核')
+    for (const other of others) {
+      other.status = '已驳回'
+      other.rejectionReason = '该物品已被其他同学认领'
+    }
+    // 3) 物品统一置为已认领
+    item.status = '已认领'
+    const approvedAt = new Date().toLocaleString('zh-CN')
+    // 4) 通知成功认领的申请人（文案不含联系方式，引导前往"我的认领"查看）
+    notifications.value.unshift({
+      id: Date.now(),
+      recipientId: claim.applicantId,
+      recipientName: claim.applicant,
+      message: '恭喜，您的认领申请已通过！请主动联系发布者交接物品（联系方式可在"我的认领"中查看）。',
+      createdAt: approvedAt,
+      read: false,
+      kind: 'claim',
+      itemId: item.id
+    })
+    // 5) 通知其余被拒绝的申请人
+    for (const other of others) {
       notifications.value.unshift({
-        id: Date.now(),
-        recipientId: publisher?.account ?? item.author,
-        recipientName: item.author,
-        message: `您发布的【${item.title}】认领申请已通过，认领人联系方式已发送给您`,
+        id: Date.now() + other.id,
+        recipientId: other.applicantId,
+        recipientName: other.applicant,
+        message: '很遗憾，该物品已被其他同学认领',
         createdAt: approvedAt,
-        read: false
-      })
-      notifications.value.unshift({
-        id: Date.now() + 1,
-        recipientId: claim.applicantId,
-        recipientName: claim.applicant,
-        message: `您对【${item.title}】的认领申请已通过，发布者联系方式为：手机号 ${claim.publisherContact || '暂未提供'}`,
-        createdAt: approvedAt,
-        read: false
+        read: false,
+        kind: 'claim',
+        itemId: item.id
       })
     }
-    if (status === '已驳回') {
-      item.status = claims.value.some((entry) => entry.itemId === item.id && entry.status === '待审核') ? '待认领' : '招领中'
-    }
+  }
+  /** 发布者拒绝某条认领申请：仅将该申请置为已驳回并通知申请人，物品状态保持不变 */
+  function rejectClaim(id: number) {
+    const claim = claims.value.find((entry) => entry.id === id)
+    if (!claim || claim.status === '已通过' || claim.status === '已驳回') return
+    claim.status = '已驳回'
+    claim.rejectionReason = '发布者未通过该认领申请'
+    const item = items.value.find((entry) => entry.id === claim.itemId)
+    if (!item) return
+    notifications.value.unshift({
+      id: Date.now(),
+      recipientId: claim.applicantId,
+      recipientName: claim.applicant,
+      message: `很遗憾，您对【${item.title}】的认领申请未通过`,
+      createdAt: new Date().toLocaleString('zh-CN'),
+      read: false,
+      kind: 'claim',
+      itemId: item.id
+    })
   }
   function markNotificationsRead(ids: number[]) {
     for (const notification of notifications.value) {
@@ -526,5 +578,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, account, registeredUsers, activeRoute, isAuthenticated, notices, items, claims, clues, notifications, favoriteItemIds, likedItemIds, comments, currentUser, pendingCount, editingItemId, setRole, setActiveRoute, login, logout, authenticate, registerUser, changeUserRole, toggleUserDisabled, publish, beginEditItem, clearEditingItem, withdrawItem, confirmRecovered, submitClaim, submitClue, approve, reject, updateClaim, markNotificationsRead, markClueNotificationsRead, markItemCluesRead, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
+  return { role, account, registeredUsers, activeRoute, isAuthenticated, notices, items, claims, clues, notifications, favoriteItemIds, likedItemIds, comments, currentUser, editingItemId, setRole, setActiveRoute, login, logout, authenticate, registerUser, changeUserRole, toggleUserDisabled, publish, beginEditItem, clearEditingItem, withdrawItem, confirmRecovered, submitClaim, submitClue, approve, reject, approveClaim, rejectClaim, markNotificationsRead, markClueNotificationsRead, markItemCluesRead, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
 })
