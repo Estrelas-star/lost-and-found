@@ -12,6 +12,8 @@ const pageSize = ref(6)
 const editVisible = ref(false)
 const editId = ref<number | null>(null)
 const editForm = ref({ title: '', tags: [] as string[], location: '', desc: '' })
+/** 表格勾选的行集合（用于批量删除） */
+const selectedItems = ref<(typeof store.items)[number][]>([])
 const tagOptions = ['数码', '证件', '日用', '服饰', '书籍', '其他']
 const statusOptions: ItemStatus[] = ['待审核', '招领中', '待认领', '已认领', '已关闭', '已撤回']
 const filteredItems = computed(() => store.items.filter((item) => {
@@ -50,13 +52,28 @@ async function removeItem(item: (typeof store.items)[number]) {
     ElMessage.success('删除成功')
   } catch { /* 用户取消 */ }
 }
+
+/** 批量删除选中的物品（带二次确认） */
+async function removeSelectedItems() {
+  const selected = selectedItems.value
+  if (!selected.length) {
+    ElMessage.warning('请先勾选要删除的物品')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的 ${selected.length} 件物品吗？删除后无法恢复。`, '批量删除确认', { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' })
+  } catch { return }
+  for (const item of selected) store.removeItem(item.id)
+  selectedItems.value = []
+  ElMessage.success(`已删除 ${selected.length} 件物品`)
+}
 </script>
 
 <template>
   <section class="manage-items page-section">
     <div class="section-intro"><span class="eyebrow">OPERATIONS</span><h1>物品管理</h1><p>维护校园内已发布的全部失物招领信息。</p></div>
-    <div class="manage-toolbar"><el-input v-model="search" clearable placeholder="按物品名称搜索" class="manage-search"/><el-select v-model="type" placeholder="物品类型"><el-option label="全部类型" value="全部"/><el-option label="失物" value="lost"/><el-option label="招领" value="found"/></el-select><el-select v-model="status" placeholder="物品状态"><el-option label="全部状态" value="全部"/><el-option v-for="itemStatus in statusOptions" :key="itemStatus" :label="itemStatus" :value="itemStatus"/></el-select></div>
-    <div class="manage-table-wrap"><el-table :data="pagedItems" stripe empty-text="暂无匹配物品"><el-table-column label="缩略图" width="78"><template #default="{ row }"><div class="manage-thumb" :class="row.color"><img v-if="row.images?.[0]" :src="row.images[0]" alt="物品缩略图"/><span v-else>{{ row.icon }}</span></div></template></el-table-column><el-table-column prop="title" label="物品名称" min-width="170"/><el-table-column label="物品标签" min-width="140"><template #default="{ row }"><div class="manage-tags"><el-tag v-for="tag in row.tags" :key="tag" size="small">{{ tag }}</el-tag></div></template></el-table-column><el-table-column prop="author" label="发布者" min-width="100"/><el-table-column prop="location" label="丢失/拾取地点" min-width="150"/><el-table-column label="当前状态" min-width="100"><template #default="{ row }"><el-tag :type="row.status === '已认领' ? 'success' : row.status === '已关闭' ? 'info' : row.status === '待认领' ? 'warning' : 'primary'">{{ row.status }}</el-tag></template></el-table-column><el-table-column prop="date" label="发布时间" min-width="100"/><el-table-column label="操作" fixed="right" width="220"><template #default="{ row }"><el-button type="primary" link @click="openEdit(row)">编辑</el-button><el-button type="warning" link @click="togglePublished(row)">{{ row.status === '已关闭' ? '上架' : '下架' }}</el-button><el-button type="danger" link @click="removeItem(row)">删除</el-button></template></el-table-column></el-table><div class="manage-pagination"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[6, 12, 24]" :total="filteredItems.length" layout="total, sizes, prev, pager, next" background/></div></div>
+    <div class="manage-toolbar"><el-input v-model="search" clearable placeholder="按物品名称搜索" class="manage-search"/><el-select v-model="type" placeholder="物品类型"><el-option label="全部类型" value="全部"/><el-option label="失物" value="lost"/><el-option label="招领" value="found"/></el-select><el-select v-model="status" placeholder="物品状态"><el-option label="全部状态" value="全部"/><el-option v-for="itemStatus in statusOptions" :key="itemStatus" :label="itemStatus" :value="itemStatus"/></el-select><el-button type="danger" plain class="manage-batch-delete-btn" :disabled="!selectedItems.length" @click="removeSelectedItems">批量删除{{ selectedItems.length ? `(${selectedItems.length})` : '' }}</el-button></div>
+    <div class="manage-table-wrap"><el-table :data="pagedItems" stripe empty-text="暂无匹配物品" style="width:100%" @selection-change="(rows: (typeof store.items)[number][]) => selectedItems = rows"><el-table-column type="selection" width="48"/><el-table-column label="缩略图" width="78"><template #default="{ row }"><div class="manage-thumb" :class="row.color"><img v-if="row.images?.[0]" :src="row.images[0]" alt="物品缩略图"/><span v-else>{{ row.icon }}</span></div></template></el-table-column><el-table-column prop="title" label="物品名称" min-width="160"/><el-table-column label="物品标签" width="150"><template #default="{ row }"><div class="manage-tags"><el-tag v-for="tag in row.tags" :key="tag" size="small">{{ tag }}</el-tag></div></template></el-table-column><el-table-column prop="author" label="发布者" width="110"/><el-table-column prop="location" label="丢失/拾取地点" min-width="200"/><el-table-column label="当前状态" width="100"><template #default="{ row }"><el-tag :type="row.status === '已认领' ? 'success' : row.status === '已关闭' ? 'info' : row.status === '待认领' ? 'warning' : 'primary'">{{ row.status }}</el-tag></template></el-table-column><el-table-column prop="date" label="发布时间" width="110"/><el-table-column label="操作" width="180"><template #default="{ row }"><el-button type="primary" link @click="openEdit(row)">编辑</el-button><el-button type="warning" link @click="togglePublished(row)">{{ row.status === '已关闭' ? '上架' : '下架' }}</el-button><el-button type="danger" link @click="removeItem(row)">删除</el-button></template></el-table-column></el-table><div class="manage-pagination"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[6, 12, 24]" :total="filteredItems.length" layout="total, sizes, prev, pager, next" background/></div></div>
     <el-dialog v-model="editVisible" title="编辑物品信息" width="min(520px, 92vw)"><el-form label-position="top"><el-form-item label="物品名称" required><el-input v-model="editForm.title" placeholder="请输入物品名称"/></el-form-item><el-form-item label="物品标签"><el-select v-model="editForm.tags" multiple class="manage-control" placeholder="请选择标签"><el-option v-for="tag in tagOptions" :key="tag" :label="tag" :value="tag"/></el-select></el-form-item><el-form-item label="地点"><el-input v-model="editForm.location"/></el-form-item><el-form-item label="描述"><el-input v-model="editForm.desc" type="textarea" :rows="4"/></el-form-item></el-form><template #footer><el-button @click="editVisible = false">取消</el-button><el-button type="primary" @click="submitEdit">提交修改</el-button></template></el-dialog>
   </section>
 </template>
