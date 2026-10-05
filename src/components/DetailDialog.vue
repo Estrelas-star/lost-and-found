@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useAppStore, type Item } from '../stores/app'
+import { useAppStore, isActiveStatus, type Item } from '../stores/app'
 import { renderMarkdown } from '../utils/markdown'
 
 const props = defineProps<{ item: Item | null, visible: boolean }>()
@@ -23,7 +23,7 @@ const dialogVisible = computed({
     if (!value) emit('close')
   }
 })
-const canClaim = computed(() => !!props.item && props.item.status === '招领中')
+const canClaim = computed(() => !!props.item && isActiveStatus(props.item.status))
 
 onMounted(() => { if (props.item) store.fetchComments(props.item.id) })
 
@@ -45,14 +45,15 @@ async function sendComment() {
 }
 
 async function submitClaim() {
-  if (!props.item) return
+  const item = props.item
+  if (!item) return
   if (!canClaim.value) {
-    ElMessage.warning('该物品当前不可申请认领')
+    ElMessage.warning('该物品当前不可认领')
     return
   }
   try {
-    await store.submitClaim(props.item.id)
-    ElMessage.success('认领成功')
+    await store.submitClaim(item.id)
+    ElMessage.success(item.type === 'lost' ? '已提交，等待失主联系' : '认领成功')
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/30006|绑定|qq|QQ/i.test(msg)) ElMessage.warning('认领需先绑定QQ，请前往账号设置绑定')
@@ -90,7 +91,7 @@ function submitReport() {
       <div class="detail-content"><span class="eyebrow">{{ item.type === 'lost' ? '寻物信息' : '招领信息' }} · {{ item.date }}</span><h2>{{ item.title }}</h2><div class="detail-tags"><el-tag v-for="tag in item.tags" :key="tag" effect="light">{{ tag }}</el-tag></div><div class="markdown-body" v-html="renderMarkdown(item.desc)"></div><div class="detail-lines"><span>⌖ {{ item.location }}</span><span>◷ {{ item.date }}</span><span>发布人：{{ item.author }}</span></div>
         <section class="comments-section"><div class="comments-heading"><h3>评论区</h3><span>{{ comments.length }} 条评论</span></div><div v-if="replyTarget" class="replying-to">正在回复 @{{ replyTarget.author }}<button type="button" @click="replyTarget = null">取消</button></div><div class="comment-composer"><el-input v-model="commentText" type="textarea" :rows="2" :placeholder="replyTarget ? `回复 @${replyTarget.author}` : '说说你的看法...'" maxlength="200" show-word-limit /><button type="button" class="send-comment" aria-label="发送评论" :disabled="!commentText.trim()" @click="sendComment">➤</button></div><div class="comment-list"><article v-for="comment in comments" :key="comment.id" class="comment-item" :class="{ 'comment-reply': comment.parentId }"><div class="comment-avatar">{{ comment.avatar }}</div><div class="comment-body"><div class="comment-meta"><strong>{{ comment.author }}</strong><time>{{ comment.date }}</time></div><p v-if="comment.replyTo" class="reply-label">回复 @{{ comment.replyTo }}</p><p class="comment-text">{{ comment.content }}</p><div class="comment-actions"><button type="button" @click="replyTarget = { id: comment.id, author: comment.author }">回复</button></div></div></article><el-empty v-if="!comments.length" description="还没有评论，来留下第一条吧" :image-size="70" /></div></section>
         <div class="detail-stats"><span>◉ {{ 128 + item.id * 17 }} 浏览</span><button type="button" class="like-stat" :class="{ active: isLiked }" @click="store.toggleItemLike(item.id)"><span>{{ isLiked ? '♥' : '♡' }}</span> {{ likeCount }} 点赞</button><button type="button" class="favorite-stat" :class="{ active: isFavorite }" @click="store.toggleFavorite(item.id)"><span>{{ isFavorite ? '♥' : '♡' }}</span> {{ 8 + item.id * 2 + (isFavorite ? 1 : 0) }} 收藏</button></div>
-        <div v-if="store.role === 'student'" class="claim-btn-wrap"><button type="button" class="primary-btn full-btn" :disabled="!canClaim" @click="submitClaim">申请认领</button><button v-if="(props.item && store.isClaimedByMe(props.item)) && props.item?.status === '已认领'" type="button" class="primary-btn full-btn ghost" @click="cancelClaim">撤销认领</button></div>
+        <div v-if="store.role === 'student'" class="claim-btn-wrap"><button type="button" class="primary-btn full-btn" :disabled="!canClaim" @click="submitClaim">{{ item.type === 'lost' ? '我捡到了' : '申请认领' }}</button><button v-if="(props.item && store.isClaimedByMe(props.item)) && props.item?.status === '已认领'" type="button" class="primary-btn full-btn ghost" @click="cancelClaim">撤销认领</button></div>
       </div>
     </div>
   </el-dialog>

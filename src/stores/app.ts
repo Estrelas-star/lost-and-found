@@ -23,7 +23,17 @@ import { defineStore } from 'pinia'
 
 export type Role = 'student' | 'itemAdmin' | 'systemAdmin'
 export type ItemType = 'lost' | 'found'
-export type ItemStatus = '待审核' | '招领中' | '待认领' | '已认领' | '已驳回' | '已关闭'
+export type ItemStatus = '待审核' | '寻找中' | '招领中' | '待认领' | '已认领' | '已驳回' | '已关闭'
+
+// 后端 item.status 只有 0在架 / 1已认领 / 2已关闭，不区分物品类型。
+// 前端按类型把“在架”展示成两种说法：寻物(lost)=寻找中，招领(found)=招领中。
+// 注意：判断“物品是否还在架”一律用 isActiveStatus()，不要直接和某个字面量比较。
+export function activeStatusFor(type: ItemType): ItemStatus {
+  return type === 'lost' ? '寻找中' : '招领中'
+}
+export function isActiveStatus(status: ItemStatus): boolean {
+  return status === '寻找中' || status === '招领中'
+}
 
 export interface User {
   name: string
@@ -247,7 +257,7 @@ export const useAppStore = defineStore('app', () => {
       locationId: (it.locations && it.locations.length) ? it.locations[it.locations.length - 1].id : undefined,
       locationDetail: it.location_detail || '',
       date: (it.created_at || '').slice(0, 10),
-      status: it.status === 0 ? '招领中' : it.status === 1 ? '已认领' : '已关闭',
+      status: it.status === 0 ? activeStatusFor(it.type === 0 ? 'lost' : 'found') : it.status === 1 ? '已认领' : '已关闭',
       author: meId != null && it.user_id === meId ? meName : `用户${it.user_id}`,
       color: 'blue',
       icon: it.type === 0 ? '◌' : '◉',
@@ -433,7 +443,7 @@ export const useAppStore = defineStore('app', () => {
   async function sendQQCode(qq: number) {
     await getQQCode({ qq })         // POST /user/qq/get-code
   }
-  function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '招领中' }
+  function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = activeStatusFor(item.type) }
   function reject(id: number, reason: string) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '已驳回' }
   function updateItem(id: number, patch: Partial<Item>) {
     const item = items.value.find((entry) => entry.id === id)
@@ -442,7 +452,7 @@ export const useAppStore = defineStore('app', () => {
   function toggleItemPublished(id: number) {
     const item = items.value.find((entry) => entry.id === id)
     if (!item) return
-    item.status = item.status === '已关闭' ? '招领中' : '已关闭'
+    item.status = item.status === '已关闭' ? activeStatusFor(item.type) : '已关闭'
   }
   function removeItem(id: number) { items.value = items.value.filter((entry) => entry.id !== id) }
   function toggleFavorite(id: number) {

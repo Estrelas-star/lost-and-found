@@ -13,8 +13,9 @@ const editVisible = ref(false)
 const editId = ref<number | null>(null)
 const editForm = ref({ title: '', tags: [] as string[], location: '', desc: '' })
 
-// 后端状态只有 0已发布(招领中)/1已认领/2已关闭，没有"待认领"
-const statusOptions: ItemStatus[] = ['招领中', '已认领', '已关闭']
+// 后端状态只有 0在架/1已认领/2已关闭，没有"待认领"；
+// 在架再按物品类型分成「寻找中(lost)／招领中(found)」两种展示，筛选时二者都查后端 status=0
+const statusOptions: ItemStatus[] = ['寻找中', '招领中', '已认领', '已关闭']
 
 // 真实后端帖子（审核员视角）；后端无数据时用演示数据兜底并提示
 const allRemote = computed(() => store.remoteItems)
