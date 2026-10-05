@@ -243,6 +243,25 @@ async function openNotification(notification: (typeof store.notifications)[numbe
   openItemClues(item)
 }
 
+/** 删除单条通知 */
+function removeNotification(notification: (typeof store.notifications)[number]) {
+  store.removeNotification(notification.id)
+  ElMessage.success('已删除该通知')
+}
+
+/** 清空全部通知（带二次确认） */
+async function clearAllNotifications() {
+  try {
+    await ElMessageBox.confirm('确定要清空所有消息通知吗？清空后无法恢复。', '清空通知', {
+      type: 'warning',
+      confirmButtonText: '确认清空',
+      cancelButtonText: '取消'
+    })
+  } catch { return }
+  store.clearNotifications()
+  ElMessage.success('已清空全部通知')
+}
+
 function sendComment() {
   const content = commentText.value.trim()
   if (!selectedItem.value || !content) return
@@ -415,7 +434,7 @@ function toggleDisabled(user: User) {
     </aside>
 
     <main class="main-content">
-      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><div class="notification-wrap"><button class="icon-btn notification-trigger" aria-label="消息通知" :aria-expanded="notificationPanelOpen" @click="toggleNotificationPanel"><Bell class="notification-icon" aria-hidden="true"/><span v-if="unreadNotificationCount" class="notification-badge">{{ unreadNotificationCount }}</span></button><section v-if="notificationPanelOpen" class="notification-panel" aria-label="消息通知"><div class="notification-panel-heading"><strong>消息通知</strong><button type="button" aria-label="关闭通知" @click="notificationPanelOpen = false">×</button></div><div v-if="currentNotifications.length" class="notification-list"><article v-for="notification in currentNotifications" :key="notification.id" class="notification-item" :class="{ 'notification-unread': !notification.read }" role="button" tabindex="0" @click="openNotification(notification)" @keydown.enter="openNotification(notification)"><p>{{ notification.message }}</p><time>{{ notification.createdAt }}</time></article></div><el-empty v-else description="暂无系统通知" :image-size="64" /></section></div><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small">{{ store.currentUser.name.slice(0, 1) }}</span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button @click="handleLogout">退出登录</button></div></div></div></header>
+      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><div class="notification-wrap"><button class="icon-btn notification-trigger" aria-label="消息通知" :aria-expanded="notificationPanelOpen" @click="toggleNotificationPanel"><Bell class="notification-icon" aria-hidden="true"/><span v-if="unreadNotificationCount" class="notification-badge">{{ unreadNotificationCount }}</span></button><section v-if="notificationPanelOpen" class="notification-panel" aria-label="消息通知"><div class="notification-panel-heading"><strong>消息通知</strong><div class="notification-head-actions"><button v-if="currentNotifications.length" type="button" class="notification-clear-btn" @click="clearAllNotifications">清空全部</button><button type="button" class="notification-close-btn" aria-label="关闭通知" @click="notificationPanelOpen = false">×</button></div></div><div v-if="currentNotifications.length" class="notification-list"><article v-for="notification in currentNotifications" :key="notification.id" class="notification-item" :class="{ 'notification-unread': !notification.read }" role="button" tabindex="0" @click="openNotification(notification)" @keydown.enter="openNotification(notification)"><div class="notification-item-main"><p>{{ notification.message }}</p><time>{{ notification.createdAt }}</time></div><button type="button" class="notification-delete-btn" aria-label="删除该通知" @click.stop="removeNotification(notification)">删除</button></article></div><el-empty v-else description="暂无系统通知" :image-size="64" /></section></div><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small">{{ store.currentUser.name.slice(0, 1) }}</span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button @click="handleLogout">退出登录</button></div></div></div></header>
       <div class="page-wrap">
         <AuditCenter v-if="store.activeRoute === 'audit'" />
         <ManageItems v-if="store.activeRoute === 'manage'" />

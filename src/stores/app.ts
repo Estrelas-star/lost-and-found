@@ -135,7 +135,20 @@ function sysAdminUser(): User {
 function loadNotifications(): SystemNotification[] {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem('notifications') || '[]')
-    return Array.isArray(parsed) ? parsed as SystemNotification[] : []
+    if (!Array.isArray(parsed)) return []
+    const list = parsed as SystemNotification[]
+    // 清洗历史重复通知：同一收件人+同一内容只保留最新一条
+    const seen = new Set<string>()
+    const deduped: SystemNotification[] = []
+    for (const item of list) {
+      const recipient = typeof item.recipientId === 'string' ? item.recipientId : ''
+      const message = typeof item.message === 'string' ? item.message : ''
+      const key = `${recipient}-${message}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      deduped.push(item)
+    }
+    return deduped
   } catch {
     return []
   }
@@ -521,6 +534,16 @@ export const useAppStore = defineStore('app', () => {
       if (ids.includes(notification.id)) notification.read = true
     }
   }
+  /** 删除单条通知 */
+  function removeNotification(id: number) {
+    notifications.value = notifications.value.filter((notification) => notification.id !== id)
+  }
+  /** 清空当前登录用户收到的全部通知 */
+  function clearNotifications() {
+    notifications.value = notifications.value.filter(
+      (notification) => notification.recipientId !== account.value && notification.recipientName !== currentUser.value.name
+    )
+  }
   function markClueNotificationsRead(itemId: number) {
     const clueNotificationIds = notifications.value
       .filter((notification) => notification.kind === 'clue' && notification.itemId === itemId && notification.recipientId === account.value)
@@ -578,5 +601,5 @@ export const useAppStore = defineStore('app', () => {
     comment.likes += comment.liked ? 1 : -1
   }
 
-  return { role, account, registeredUsers, activeRoute, isAuthenticated, notices, items, claims, clues, notifications, favoriteItemIds, likedItemIds, comments, currentUser, editingItemId, setRole, setActiveRoute, login, logout, authenticate, registerUser, changeUserRole, toggleUserDisabled, publish, beginEditItem, clearEditingItem, withdrawItem, confirmRecovered, submitClaim, submitClue, approve, reject, approveClaim, rejectClaim, markNotificationsRead, markClueNotificationsRead, markItemCluesRead, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
+  return { role, account, registeredUsers, activeRoute, isAuthenticated, notices, items, claims, clues, notifications, favoriteItemIds, likedItemIds, comments, currentUser, editingItemId, setRole, setActiveRoute, login, logout, authenticate, registerUser, changeUserRole, toggleUserDisabled, publish, beginEditItem, clearEditingItem, withdrawItem, confirmRecovered, submitClaim, submitClue, approve, reject, approveClaim, rejectClaim, removeNotification, clearNotifications, markNotificationsRead, markClueNotificationsRead, markItemCluesRead, toggleFavorite, toggleItemLike, addComment, toggleCommentLike, updateItem, toggleItemPublished, removeItem }
 })
