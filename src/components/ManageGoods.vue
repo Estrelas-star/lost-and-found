@@ -263,7 +263,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.goods-page{max-width:1080px}
+.goods-page{max-width:var(--page-max)}
 .goods-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:22px 0 14px}
 .goods-search{width:260px}
 .goods-alert{margin-bottom:16px}

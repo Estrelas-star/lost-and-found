@@ -432,10 +432,6 @@
   display: none;
 }
 
-.page-section.narrow {
-  display: none;
-}
-
 .profile-wrap {
   position: relative;
 }
@@ -709,6 +705,8 @@
   /* 动效 */
   --dur: .2s;
   --ease: cubic-bezier(.4,0,.2,1);
+  /* 布局：全站页面内容宽度标准 —— 各页面容器统一引用它，避免不同页边距宽窄不一 */
+  --page-max: 1120px;
 }
 
 * {
@@ -1002,8 +1000,16 @@ button {
   height: 27px;
 }
 
+/* 页面内容统一标准（宽度见 :root 的 --page-max）：全站所有 page-section 左右边距一致并居中。
+   各页面组件不再各写 max-width（原为 880 / 920 / 1080px 三种），统一引用该令牌。 */
+.page-section {
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+}
+
 .page-wrap {
-  max-width: 1240px;
+  max-width: 1320px;
   padding: 46px 5.5% 80px;
   margin: auto;
 }
@@ -1274,11 +1280,6 @@ button {
 
 .section-intro {
   margin-bottom: 30px;
-}
-
-.narrow {
-  max-width: 900px;
-  margin: 0 auto;
 }
 
 .form-panel,

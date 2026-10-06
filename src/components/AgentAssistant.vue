@@ -75,6 +75,39 @@ const images = ref<string[]>([])
 const locationSelectorRef = ref<InstanceType<typeof LocationSelector>>()
 const tagOptions = computed(() => store.tags)
 
+// 附加信息非空时：胶囊高亮 + 出现「×」一键清除全部（按需求不做任何文字变化）
+const hasExtras = computed(() => selectedTags.value.length > 0 || !!locationLabel.value.trim())
+function clearExtras() {
+  selectedTags.value = []
+  locationLabel.value = ''
+  locationId.value = null
+  locationSelectorRef.value?.setPath([])   // 同步清掉级联选择器的内部路径
+}
+
+// —— 图片：输入框右下角小图标选图 + 整块对话区拖拽上传 ——
+const imagePickerRef = ref<InstanceType<typeof AgentImagePicker>>()
+const panelDragOver = ref(false)
+// dragenter / dragleave 会在子元素之间反复触发，用深度计数判断是否真的离开了面板
+let dragDepth = 0
+function onPanelDragEnter(e: DragEvent) {
+  if (!canSend.value) return
+  if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return   // 只对「拖文件」响应
+  dragDepth += 1
+  panelDragOver.value = true
+}
+function onPanelDragLeave() {
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (dragDepth === 0) panelDragOver.value = false
+}
+async function onPanelDrop(e: DragEvent) {
+  dragDepth = 0
+  panelDragOver.value = false
+  if (!canSend.value) return
+  const files = Array.from(e.dataTransfer?.files || [])
+  if (files.length) await imagePickerRef.value?.addFiles(files)
+}
+function pickImages() { imagePickerRef.value?.pick() }
+
 // —— 限流冷却（120004）：进入 60 秒倒计时，期间禁止发送 ——
 const cooldown = ref(0)
 let cooldownTimer: ReturnType<typeof setInterval> | null = null
@@ -90,8 +123,8 @@ function startCooldown(seconds = 60) {
 const canSend = computed(() => !sending.value && cooldown.value === 0)
 const sendLabel = computed(() => (cooldown.value > 0 ? `${cooldown.value}s` : '发送'))
 const placeholder = computed(() => (sessionId.value
-  ? '回复补充信息，或输入「确认」发布草稿、「取消」放弃'
-  : '描述一下物品：丢了什么 / 在哪里捡到的 / 大概时间…（回车发送）'))
+  ? '回复补充信息，或输入「确认」发布草稿、「取消」放弃；图片可通过拖拽上传'
+  : '描述一下物品：丢了什么 / 在哪里捡到的 / 大概时间…；图片可通过拖拽上传（回车发送）'))
 
 // 智能助手统一头像：后端上传目录下的静态图，展示时经 resolveImageUrl 拼源（相对 URL 约定）
 const aiAvatarUrl = resolveImageUrl('/uploads/chensong.jpg')
@@ -134,11 +167,8 @@ function buildBody(raw: string, action: AgentAction): string {
 
 function clearComposer() {
   input.value = ''
-  selectedTags.value = []
   images.value = []
-  locationLabel.value = ''
-  locationId.value = null
-  locationSelectorRef.value?.setPath([])   // 同步清掉级联选择器的内部路径
+  clearExtras()
 }
 
 function applyResponse(data: AgentChatResponse) {
@@ -257,46 +287,32 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
       <p>说一句话就能发帖，也能让助手帮你翻找匹配的帖子。</p>
     </div>
 
-    <!-- 右侧「试试这样说」示例弹窗：梯形按钮可开合；首次进入自动展开（cookie 记忆） -->
-    <aside v-if="!agentDisabled" class="agent-drawer" :class="{ 'is-open': drawerOpen }">
-      <button
-        type="button"
-        class="agent-drawer-toggle"
-        :aria-expanded="drawerOpen"
-        :title="drawerOpen ? '收起示例窗' : '展开示例窗，看看可以怎么说'"
-        @click="toggleDrawer"
-      >{{ drawerOpen ? '收起示例' : '试试这样说' }}</button>
-      <div class="agent-drawer-body">
-        <span class="agent-guide-title">试试这样说</span>
-        <div class="agent-guide-chips">
-          <button v-for="ex in EXAMPLES" :key="ex" type="button" class="agent-guide-chip" @click="useExample(ex)">{{ ex }}</button>
-        </div>
-        <p class="agent-guide-note">助手会先给出草稿，你回复「确认」或补充信息后才会真正发布；回复「取消」则放弃。也可以附上物品照片（最多 3 张）辅助识别。</p>
-      </div>
-    </aside>
+    <!-- 对话区与示例弹窗同一行：弹窗的梯形按钮直接附着在对话面板的右边缘 -->
+    <div class="agent-main">
+      <!-- 120006：后端未开启 agent 功能时的降级态 -->
+      <el-result
+        v-if="agentDisabled"
+        icon="warning"
+        title="智能助手暂未开启"
+        sub-title="后端当前未启用该功能，你可以直接前往「发布信息」手动登记，或稍后再来试试。"
+        class="agent-disabled"
+      >
+        <template #extra>
+          <el-button type="primary" @click="goPublish">去发布信息</el-button>
+        </template>
+      </el-result>
 
-    <!-- 120006：后端未开启 agent 功能时的降级态 -->
-    <el-result
-      v-if="agentDisabled"
-      icon="warning"
-      title="智能助手暂未开启"
-      sub-title="后端当前未启用该功能，你可以直接前往「发布信息」手动登记，或稍后再来试试。"
-      class="agent-disabled"
-    >
-      <template #extra>
-        <el-button type="primary" @click="goPublish">去发布信息</el-button>
-      </template>
-    </el-result>
-
-    <div v-else class="agent-panel">
-      <div class="agent-panel-head">
-        <span class="agent-status" :class="{ 'agent-status-on': !!sessionId }">
-          {{ sessionId ? '会话进行中（30 分钟内有效）' : '等待你的描述' }}
-        </span>
-        <button type="button" class="agent-restart" @click="restart">↻ 重新开始</button>
-      </div>
-
-      <div ref="streamRef" class="agent-stream">
+      <!-- 整块（对话 + 输入区）都是图片投放区：拖入未松手时显示灰色蒙雾 -->
+      <div
+        v-else
+        class="agent-panel"
+        :class="{ 'is-dragging': panelDragOver }"
+        @dragenter.prevent="onPanelDragEnter"
+        @dragover.prevent
+        @dragleave.prevent="onPanelDragLeave"
+        @drop.prevent="onPanelDrop"
+      >
+        <div ref="streamRef" class="agent-stream">
         <div v-for="m in messages" :key="m.id" class="agent-row" :class="m.role === 'user' ? 'agent-row-user' : 'agent-row-agent'">
           <div v-if="m.role === 'user'" class="agent-bubble agent-bubble-user">
             <span class="agent-bubble-text">{{ m.text }}</span>
@@ -373,75 +389,126 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
         </div>
       </div>
 
-      <!-- 输入区：标签 / 地点均为可选，发送时自动拼接进描述（例：原句（地点：屏峰校区 · 图书馆；特征：水杯、黑色）） -->
+      <!-- 输入区（固定在面板底部）：已选图片 / 标签·地点胶囊 / 输入框 / 重新开始·发送 -->
       <div class="agent-composer">
-        <div class="agent-extras">
-          <div class="agent-extra">
-            <span class="agent-extra-label">物品标签<i>可选</i></span>
-            <el-select v-model="selectedTags" multiple collapse-tags clearable placeholder="可多选，例如：水杯、黑色" class="agent-extra-select">
-              <el-option v-for="t in tagOptions" :key="t.id" :label="t.name" :value="t.name" />
-            </el-select>
+        <!-- 已选图片：只显示缩略图，上传入口是输入框右下角的小图片图标 + 整块拖拽 -->
+        <AgentImagePicker ref="imagePickerRef" v-model="images" :max="3" :disabled="!canSend" hide-add class="agent-images" />
+
+        <!-- 输入区：左边「标签 | 地点」胶囊、中间多行输入、右边「重新开始 / 发送」竖列 -->
+        <div class="agent-input-row">
+          <div class="agent-extras">
+            <span class="agent-extras-label">可选</span>
+            <div class="agent-extras-capsule" :class="{ 'is-on': hasExtras }">
+              <el-select v-model="selectedTags" multiple collapse-tags placeholder="标签" class="agent-extra-tags">
+                <el-option v-for="t in tagOptions" :key="t.id" :label="t.name" :value="t.name" />
+              </el-select>
+              <span class="agent-extras-divider" aria-hidden="true"></span>
+              <LocationSelector ref="locationSelectorRef" v-model="locationLabel" v-model:location-id="locationId" class="agent-extra-location" />
+              <button v-if="hasExtras" type="button" class="agent-extras-clear" title="清除标签与地点" @click="clearExtras">×</button>
+            </div>
           </div>
-          <div class="agent-extra">
-            <span class="agent-extra-label">地点<i>可选</i></span>
-            <LocationSelector ref="locationSelectorRef" v-model="locationLabel" v-model:location-id="locationId" />
+
+          <div class="agent-input-box">
+            <el-input
+              v-model="input"
+              type="textarea"
+              :rows="3"
+              :maxlength="MAX_TEXT"
+              resize="none"
+              :placeholder="placeholder"
+              @keydown.enter.exact.prevent="send()"
+            />
+            <div class="agent-input-tools">
+              <span class="agent-count">{{ input.length }}/{{ MAX_TEXT }}</span>
+              <button type="button" class="agent-img-btn" :disabled="!canSend" title="上传图片（JPG / PNG / WEBP，单张 ≤5MB，最多 3 张）" aria-label="上传图片" @click="pickImages">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect x="3" y="4.5" width="18" height="15" rx="3" stroke="currentColor" stroke-width="1.6" />
+                  <circle cx="9" cy="10" r="1.6" fill="currentColor" />
+                  <path d="M4 16.4l4.7-4.7a1.4 1.4 0 0 1 2 0l4.6 4.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="agent-actions-col">
+            <button type="button" class="agent-restart" @click="restart"><span class="agent-restart-icon" aria-hidden="true">↻</span>重新开始</button>
+            <button type="button" class="agent-send" :disabled="!canSend" @click="send()">
+              <svg class="agent-send-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M21.4 3.1 2.9 10.4l6.5 2.7 2.7 6.5z" fill="currentColor" />
+                <path d="M9.4 13.1 21.4 3.1" stroke="#fff" stroke-width="1.3" stroke-linecap="round" />
+              </svg>
+              {{ sendLabel }}
+            </button>
           </div>
         </div>
 
-        <div class="agent-input-row">
-          <el-input
-            v-model="input"
-            type="textarea"
-            :rows="3"
-            :maxlength="MAX_TEXT"
-            show-word-limit
-            resize="none"
-            :placeholder="placeholder"
-            @keydown.enter.exact.prevent="send()"
-          />
-          <button type="button" class="agent-send" :disabled="!canSend" @click="send()">{{ sendLabel }}</button>
-        </div>
-        <!-- 多模态：图片作为文本的补充（后端要求 text 必填） -->
-        <div class="agent-image-row">
-          <AgentImagePicker v-model="images" :max="3" :disabled="!canSend" />
-        </div>
-        <p class="agent-tip">
-          回车发送 · 可附图片（最多 3 张）辅助识别 · 助手先给草稿，回复「确认」或补充信息才会发布 · 单次约 2~8 秒，请不要重复提交
-          <span v-if="cooldown > 0" class="agent-cooldown">（已触发限流，{{ cooldown }} 秒后可再次发送）</span>
-        </p>
+        <p v-if="cooldown > 0" class="agent-cooldown">已触发限流，{{ cooldown }} 秒后可再次发送</p>
       </div>
+
+        <!-- 拖到整块对话区时的蒙雾提示（松手即上传） -->
+        <div v-if="panelDragOver" class="agent-drop-mask">
+          <svg class="agent-drop-icon" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <rect x="6.5" y="11" width="35" height="26" rx="4.5" stroke="currentColor" stroke-width="2" />
+            <circle cx="17.5" cy="20.5" r="3" fill="currentColor" />
+            <path d="M9.5 33.5l9.2-9.2a2 2 0 0 1 2.9 0l6.4 6.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <strong>松开即可上传图片</strong>
+          <span>支持 JPG / PNG / WEBP，单张 ≤5MB，最多 3 张</span>
+        </div>
+      </div>
+
+      <!-- 示例弹窗：梯形按钮（短边向右）附着在对话面板的右边缘 -->
+      <aside v-if="!agentDisabled" class="agent-drawer" :class="{ 'is-open': drawerOpen }">
+        <button
+          type="button"
+          class="agent-drawer-toggle"
+          :aria-expanded="drawerOpen"
+          :title="drawerOpen ? '收起示例窗' : '展开示例窗，看看可以怎么说'"
+          @click="toggleDrawer"
+        >{{ drawerOpen ? '收起示例' : '试试这样说' }}</button>
+        <div class="agent-drawer-body">
+          <span class="agent-guide-title">试试这样说</span>
+          <div class="agent-guide-chips">
+            <button v-for="ex in EXAMPLES" :key="ex" type="button" class="agent-guide-chip" @click="useExample(ex)">{{ ex }}</button>
+          </div>
+          <p class="agent-guide-note">助手会先给出草稿，你回复「确认」或补充信息后才会真正发布；回复「取消」则放弃。</p>
+        </div>
+      </aside>
     </div>
   </section>
 </template>
 
 <style scoped>
 /* 整页不滚动：页面高度锁在视口内（顶栏 76 + page-wrap 上下内边距 46/80），只有对话流内部滚动 */
-.agent-page{display:flex;flex-direction:column;height:calc(100vh - 202px);height:calc(100dvh - 202px);max-width:880px;transition:max-width var(--dur) var(--ease),padding-right var(--dur) var(--ease)}
-/* 示例窗展开时为它预留右侧空间：对话区整体左移，弹窗绝不压住对话（≤1199px 见下方媒体查询） */
-.agent-page.has-drawer{max-width:calc(880px + 316px);padding-right:316px}
+.agent-page{display:flex;flex-direction:column;height:calc(100vh - 202px);height:calc(100dvh - 202px);max-width:var(--page-max);margin:0 auto}
+/* 展开示例窗时右侧多占一列，对话面板保持原有宽度 */
+.agent-page.has-drawer{max-width:calc(var(--page-max) + 342px)}
 .agent-disabled{margin-top:28px}
-.agent-panel{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:22px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card)}
-.agent-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid #edf1ed;background:#fbfcfa;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
-.agent-status{font-size:11px;color:#9aa9a1;letter-spacing:.3px}
-.agent-status-on{color:var(--green);font-weight:700}
-.agent-restart{font-size:12px;color:#6b7a73;padding:5px 11px;border:1px solid var(--line);border-radius:16px;background:#fff}
-.agent-restart:hover{border-color:var(--green);color:var(--green)}
-.agent-stream{flex:1;min-height:140px;overflow-y:auto;padding:20px 18px;display:flex;flex-direction:column;gap:14px;background:#f9fbf9}
+/* 对话面板 + 示例弹窗同一行：弹窗的梯形按钮正好落在面板右边缘 */
+.agent-main{display:flex;align-items:stretch;flex:1;min-height:0;margin-top:22px}
+.agent-panel{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card)}
+.agent-stream{flex:1;min-height:140px;overflow-y:auto;padding:20px 18px;display:flex;flex-direction:column;gap:14px;background:#f9fbf9;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+/* 图片拖到面板任意位置（对话 + 输入区）时的灰色蒙雾 */
+.agent-drop-mask{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px;border-radius:var(--radius-lg);background:#5c6d6666;color:#fff;text-align:center;pointer-events:none}
+.agent-drop-mask strong{font-size:15px}
+.agent-drop-mask span{font-size:12px;opacity:.88}
+.agent-drop-icon{width:46px;height:46px;opacity:.92;margin-bottom:2px}
 .agent-guide-title{display:block;font-size:11px;color:#9aa9a1;letter-spacing:1.4px;font-weight:700;margin-bottom:10px}
 .agent-guide-chips{display:flex;flex-wrap:wrap;gap:8px}
-.agent-guide-chip{padding:8px 13px;border:1px solid var(--line);border-radius:18px;background:#fff;color:#4b615a;font-size:12px;line-height:1.4}
+.agent-guide-chip{padding:8px 13px;border:1px solid var(--line);border-radius:18px;background:var(--surface-soft);color:#4b615a;font-size:12px;line-height:1.4;text-align:left;cursor:pointer}
 .agent-guide-chip:hover{border-color:var(--green);color:var(--green);background:#f2faf6}
 .agent-guide-note{margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.6}
-/* —— 右侧「试试这样说」示例弹窗：浮在页面右侧，梯形按钮贴在它的左边缘 —— */
-.agent-drawer{position:fixed;top:96px;right:0;width:300px;z-index:30;pointer-events:none}
-.agent-drawer-body{pointer-events:auto;padding:16px 16px 14px;background:var(--surface);border:1px solid var(--line);border-right:0;border-radius:var(--radius-lg) 0 0 var(--radius-lg);box-shadow:var(--shadow-pop);max-height:min(58vh,440px);overflow-y:auto;transform:translateX(100%);transition:transform var(--dur) var(--ease)}
-.agent-drawer.is-open .agent-drawer-body{transform:none}
-.agent-drawer-toggle{pointer-events:auto;position:absolute;left:-30px;top:14px;display:grid;place-items:center;width:30px;height:96px;padding:0;border:0;background:var(--green);color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;writing-mode:vertical-rl;cursor:pointer;clip-path:polygon(0 14%,100% 0,100% 100%,0 86%);transition:background var(--dur) var(--ease)}
+/* —— 示例弹窗：与对话面板同一行；梯形按钮短边向右，紧贴面板右边缘 —— */
+.agent-drawer{position:relative;flex:0 0 auto;width:0;transition:width var(--dur) var(--ease)}
+.agent-page.has-drawer .agent-drawer{flex:0 0 342px;width:342px;padding-left:26px}
+.agent-drawer-body{display:none}
+.agent-page.has-drawer .agent-drawer-body{display:block;width:300px;height:100%;padding:16px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card)}
+.agent-drawer-toggle{position:absolute;left:0;top:14px;display:grid;place-items:center;width:26px;height:96px;padding:0;border:0;background:var(--green);color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;writing-mode:vertical-rl;cursor:pointer;clip-path:polygon(0 0,100% 14%,100% 86%,0 100%);transition:background var(--dur) var(--ease)}
 .agent-drawer-toggle:hover{background:var(--green-dark)}
-/* 宽屏下弹窗较窄：示例做成竖排更易读 */
+/* 弹窗较窄：示例竖排更易读 */
 @media(min-width:1200px){
   .agent-drawer .agent-guide-chips{flex-direction:column;gap:6px}
-  .agent-drawer .agent-guide-chip{width:100%;text-align:left;background:var(--surface-soft)}
+  .agent-drawer .agent-guide-chip{width:100%}
 }
 .agent-row{display:flex;gap:10px;align-items:flex-start}
 .agent-row-user{justify-content:flex-end}
@@ -482,36 +549,64 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 .agent-similar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:10px}
 .agent-similar-label{color:#9aa9a1;font-size:11px;letter-spacing:.6px}
 .agent-similar-link{color:var(--green);font-size:12px;text-decoration:underline;text-underline-offset:3px}
-.agent-composer{flex:0 0 auto;padding:14px 18px 16px;border-top:1px solid #edf1ed;background:#fff;border-radius:0 0 var(--radius-lg) var(--radius-lg)}
-.agent-image-row{margin-top:10px}
-/* 物品标签 / 地点：并排一行（≤700px 自动回落为单列） */
-.agent-extras{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:12px}
-.agent-extra{display:grid;grid-template-columns:88px 1fr;gap:10px;align-items:start}
-.agent-extra-label{color:#6b7a73;font-size:12px;line-height:32px}
-.agent-extra-label i{margin-left:4px;color:#b6bfba;font-size:10px;font-style:normal}
-.agent-extra-select{width:100%}
-.agent-input-row{display:flex;gap:10px;align-items:flex-end}
-.agent-input-row :deep(.el-textarea){flex:1}
-.agent-send{flex:0 0 84px;height:38px;border-radius:9px;background:var(--green);color:#fff;font-size:13px;font-weight:700;box-shadow:0 5px 12px #42b98330}
-.agent-send:hover:not(:disabled){background:#369976}
+.agent-composer{flex:0 0 auto;display:flex;flex-direction:column;gap:12px;padding:14px 18px 16px;border-top:1px solid #edf1ed;background:#fff;border-radius:0 0 var(--radius-lg) var(--radius-lg)}
+.agent-images{width:100%}
+.agent-input-row{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+/* 左：标签 / 地点装进一个胶囊，中间用分割线隔开；上方左对齐写小字「可选」 */
+.agent-extras{flex:0 0 250px;display:flex;flex-direction:column;gap:6px}
+.agent-extras-label{padding-left:12px;color:var(--muted-2);font-size:10px;font-weight:700;letter-spacing:1.2px}
+.agent-extras-capsule{display:flex;align-items:center;height:40px;padding:0 8px 0 10px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--surface);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+.agent-extras-capsule:focus-within{box-shadow:0 0 0 2px var(--green-soft)}
+.agent-extras-capsule.is-on{border-color:var(--green);background:var(--green-soft)}
+.agent-extras-divider{flex:0 0 1px;align-self:stretch;margin:9px 7px;background:var(--line)}
+.agent-extras-clear{flex:0 0 auto;width:20px;height:20px;margin-left:5px;padding:0;border:0;border-radius:50%;background:#00000014;color:#6b7a73;font-size:13px;line-height:1;display:grid;place-items:center;cursor:pointer}
+.agent-extras-clear:hover{background:#e06c75;color:#fff}
+.agent-extra-tags{flex:1 1 92px;min-width:0}
+.agent-extra-location{flex:1 1 116px;min-width:0}
+.agent-extras-capsule :deep(.el-select),.agent-extras-capsule :deep(.el-input),.agent-extras-capsule :deep(.el-cascader){width:100%}
+.agent-extras-capsule :deep(.el-select__wrapper),.agent-extras-capsule :deep(.el-input__wrapper){background:transparent!important;box-shadow:none!important;padding:0 4px}
+.agent-extras-capsule :deep(.el-select__placeholder),.agent-extras-capsule :deep(.el-input__inner){font-size:12px}
+.agent-extras-capsule :deep(.location-selector){gap:0;flex-wrap:nowrap;width:100%}
+.agent-extras-capsule :deep(.location-selector .loc-cascader){flex:1 1 100%}
+/* 中：输入框（右下角是字数统计与小图片图标） */
+.agent-input-box{position:relative;flex:1 1 280px;min-width:240px}
+.agent-input-box :deep(.el-textarea){width:100%}
+.agent-input-box :deep(.el-textarea__inner){min-height:96px!important;padding:10px 12px 30px;border-radius:var(--radius-md);box-shadow:0 0 0 1px var(--line) inset}
+.agent-input-box :deep(.el-textarea__inner:focus){box-shadow:0 0 0 1px var(--green) inset}
+.agent-input-tools{position:absolute;right:10px;bottom:7px;display:flex;align-items:center;gap:8px}
+.agent-count{color:var(--muted-2);font-size:11px;font-variant-numeric:tabular-nums}
+.agent-img-btn{width:24px;height:24px;padding:0;border:0;border-radius:6px;background:transparent;color:#8fa39a;display:grid;place-items:center;cursor:pointer;transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+.agent-img-btn svg{width:17px;height:17px}
+.agent-img-btn:hover:not(:disabled){background:var(--green-soft);color:var(--green)}
+.agent-img-btn:disabled{opacity:.45;cursor:not-allowed}
+/* 右：「重新开始」（上）与「发送」（下）同宽，竖列对齐 */
+.agent-actions-col{flex:0 0 132px;display:flex;flex-direction:column;gap:8px}
+.agent-restart{display:flex;align-items:center;justify-content:center;gap:5px;height:36px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--green-soft);color:var(--ink);font-size:12px;font-weight:600;cursor:pointer;transition:border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+.agent-restart:hover{border-color:var(--green);color:var(--green)}
+.agent-restart-icon{font-size:14px;line-height:1}
+.agent-send{display:flex;align-items:center;justify-content:center;gap:6px;height:40px;border:0;border-radius:var(--radius-md);background:var(--green);color:#fff;font-size:13px;font-weight:700;box-shadow:0 5px 12px #42b98330;cursor:pointer;transition:background var(--dur) var(--ease)}
+.agent-send-icon{width:16px;height:16px}
+.agent-send:hover:not(:disabled){background:var(--green-dark)}
 .agent-send:disabled{background:#b9c4bf;box-shadow:none;cursor:not-allowed}
-.agent-tip{margin:10px 0 0;color:var(--muted);font-size:11px;line-height:1.6}
-.agent-cooldown{color:#c9952f}
-/* 中窄屏：示例窗改为流内块，放在对话区上方（不再浮层）—— 任何宽度下都不遮挡对话 */
+.agent-cooldown{margin:0;color:#c9952f;font-size:11.5px}
+/* 中窄屏：示例窗改为对话区上方的流内块（不再占右侧一列），任何宽度下都不遮挡对话 */
 @media(max-width:1199px){
-  .agent-page.has-drawer{max-width:880px;padding-right:0}
-  .agent-drawer{position:static;width:auto;margin-top:16px;pointer-events:auto}
-  .agent-drawer-body{transform:none;border-right:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-xs);max-height:min(38vh,320px);margin-top:10px}
-  .agent-drawer:not(.is-open) .agent-drawer-body{display:none}
+  .agent-page.has-drawer{max-width:var(--page-max)}
+  .agent-main{flex-direction:column;gap:14px}
+  .agent-drawer{order:-1;width:auto}
+  .agent-page.has-drawer .agent-drawer{flex:0 0 auto;width:auto;padding-left:0}
+  .agent-page.has-drawer .agent-drawer-body{width:auto;max-height:min(38vh,300px);margin-top:10px}
   .agent-drawer-toggle{position:static;width:auto;height:auto;padding:6px 16px;font-size:12px;letter-spacing:0;writing-mode:horizontal-tb;clip-path:polygon(0 0,96% 0,100% 100%,0 100%)}
 }
+@media(max-width:900px){
+  .agent-extras{flex:1 1 100%}
+}
 @media(max-width:700px){
-  .agent-extras{grid-template-columns:1fr}
-  .agent-extra{grid-template-columns:1fr}
-  .agent-extra-label{line-height:1.4}
   .agent-bubble{max-width:88%}
-  .agent-input-row{flex-direction:column;align-items:stretch}
-  .agent-send{width:100%;flex:0 0 auto}
+  .agent-input-row{align-items:stretch}
+  .agent-extras,.agent-input-box,.agent-actions-col{flex:1 1 100%;min-width:0}
+  .agent-actions-col{flex-direction:row}
+  .agent-actions-col .agent-restart,.agent-actions-col .agent-send{flex:1}
 }
 /* ≤640px 时 page-wrap 内边距变为 30/60，可用高度相应多出 36px */
 @media(max-width:640px){

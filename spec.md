@@ -55,8 +55,8 @@
 
 | 字段 | 控件 | 校验规则 |
 | --- | --- | --- |
-| 信息类型 | radio-button（丢失 `lost` / 拾取 `found`） | 必选（默认 lost） |
-| 物品名称 | `el-input` | 必填，至少 2 个字符 |
+| 物品名称 | `el-input` | 必填，至少 2 个字符（**第一行左侧**） |
+| 信息类型 | radio-button（丢失 `lost` / 拾取 `found`） | 必选（默认 lost）；**第一行右侧且收窄**，其右紧邻【✦ AI 帮写】按钮（渐变主色实心、带投影，样式醒目） |
 | 物品标签 | 标签墙多选（`TagWall.vue`） | **必选至少 1 个**（从后端 `/tag/list` 多选） |
 | 丢失/拾取地点 | `el-cascader`（后端地点树，校区 → 建筑/地点，选到叶子） | 必选，返回叶子 `location_id` |
 | 详细地点信息 | `el-input` | 选填，补充如「靠窗自习室 / 桥头左侧」，写入 `location_detail` |
@@ -64,6 +64,8 @@
 | 详细描述 | `el-textarea`（支持 Markdown） | 必填，至少 10 个字符；支持拖拽/选择图片自动插入 `![图片](url)` |
 
 发布成功即**所有人可见**（后端「创建即发布」，无审核环节），发布后自动跳转「我的发布」。
+
+> 表单容器宽度引用全站标准 `var(--page-max)`（见 7.5），不再单独写 920px。
 
 #### 地点选择（真实地点树优先）
 
@@ -268,12 +270,12 @@ status 1（已认领）
 **页面布局细节（`/app/assistant`）**：
 
 - **助手头像统一**为 `/uploads/chensong.jpg`（经 `resolveImageUrl` 拼后端源），欢迎消息与「正在思考…」两处共用同一张图。
-- 输入区「物品标签」与「地点」**并排一行**（`.agent-extras` 两列栅格，各自 88px 标签 + 控件）；`≤700px` 自动回落为单列。
-- 「试试这样说」示例与说明**不再占用对话流**，改为**右侧示例弹窗**：
-  - 浮层定位 `right:0; top:96px; width:300px`（圆角朝左、`--shadow-pop`），带**梯形开合按钮**（`clip-path` 切角 + 竖排文字，贴在弹窗左边缘，收起时按钮仍可见）。
-  - **不遮挡对话**：宽屏（`≥1200px`）时给页面加 `.has-drawer`，即 `padding-right:316px` + `max-width: calc(880px + 316px)`，对话区整体左移；`≤1199px` 时弹窗退化为**流内块**置于对话区上方（不浮层）；`≤700px` 浮层宽度为 `min(86vw,300px)`。
-  - 选中任意示例后弹窗自动收起。
-- **cookie 记忆**：新增 `src/utils/cookie.ts`（`getCookie` / `setCookie` / `removeCookie`，`SameSite=Lax`、`path=/`），cookie 名 `lnf-agent-guide-seen`；**首次进入该页自动展开一次并写入 cookie，之后默认收起**（开合状态本身不持久化，用户可随时用梯形按钮切换）。测试时清除该 cookie 即可复现首次行为。
+- **对话面板不再有头部**：原先的「等待你的描述 / 会话进行中」状态文字与常驻提示行（`回车发送 · 可附图片…`）已移除，面板只剩「对话流 + 底部输入区」；会话状态仍由 `sessionId` 在逻辑中维护（不再展示），限流提示改为**仅在冷却期间**显示的一行小字。
+- **示例弹窗与对话面板同行**（`.agent-main` 为 flex 行）：`.has-drawer` 时 `max-width: calc(var(--page-max) + 342px)`，对话面板保持标准页宽；**梯形按钮短边向右、紧贴对话面板右边缘**（`width:26px`；`clip-path: polygon(0 0,100% 14%,100% 86%,0 100%)`；竖排文字；收起时按钮仍留在原位可点）。`≤1199px` 改为列布局、弹窗置顶（`order:-1`）成为对话区上方的流内块，任何宽度都不遮挡对话；选中示例后弹窗自动收起。
+- **cookie 记忆**：`src/utils/cookie.ts` + cookie 名 `lnf-agent-guide-seen`；首次进入该页自动展开一次并写入 cookie，之后默认收起（开合状态本身不持久化）。测试时清除该 cookie 即可复现首次行为。
+- **输入区布局（左中右）**：① 左＝「标签 ｜ 地点」**胶囊**（大圆角；内部两个控件用竖线分隔、控件去边框融进胶囊；胶囊上方左对齐小字「可选」；任一附加信息非空时胶囊转绿并出现 **×** 一键清除全部，**不做任何文字变化**）；② 中＝**多行输入框**，右下角为自有字数统计 `0/500` + **小图片图标**（点击即选图）；③ 右＝**竖排两按钮**：上「↻ 重新开始」（圆角矩形 + 浅绿底 + 黑字 + 左侧旋转图标）、下「✈ 发送消息」（小飞机图标 + 4 字文案），两者同宽对齐。
+- **整块对话区拖拽上传**：拖入**未松手**时面板整体覆盖一层**灰色蒙雾**（`#5c6d6666` + `pointer-events:none`）并提示「松开即可上传图片 ／ 支持 JPG / PNG / WEBP，单张 ≤5MB，最多 3 张」；松手即调 `AgentImagePicker.addFiles()` 上传。`dragenter/dragleave` 用深度计数判断是否真的离开面板，且仅对 `Files` 类型生效（拖拽文字不触发）。
+- 输入框 placeholder 追加「；图片可通过拖拽上传」。
 
 ### 3.13 帮助中心
 
@@ -305,7 +307,8 @@ status 1（已认领）
 - **预检**（与 `api/upload.ts` 的前端预检一致，避免不合规文件白跑一趟上传）：非图片 → 提示并忽略；MIME 不在 JPG / PNG / WEBP 内 → 提示并忽略（**不带 MIME 的拖拽 / 截图文件交后端判断**）；单张 > 5MB → 跳过并提示；超出张数上限 → 截断并提示。校验失败一律只提示，不抛错。
 - **两种形态**：`mode="single"`（头像 / 商品主图，只保留 1 张；有图时铺满整框并显示「点击更换，或拖入新图片」，`removable` 控制是否显示「移除」）与 `mode="multi"`（多图；有图时展示缩略图 + 「继续拖入或点击添加」，每张可单独移除，可用 `note` 追加说明行）。
 - **职责边界**：组件只负责「收集文件 + 预检 + 预览展示」，**上传时机由调用方决定** —— 立即上传（发布描述配图、商品主图、头像、智能助手）或「先攒成待上传队列、点保存时统一上传」（编辑发布信息）。
-- **接入点（5 处）**：`AgentImagePicker`（智能助手 / AI 帮写，≤3 张）、`PublishForm`（描述配图，≤9 张，上传后以 Markdown 插入描述光标处）、`EditItemDialog`（多图，保存时统一上传并提示待上传张数）、`ManageGoods`（商品主图，单图）、`UserSettingsDialog`（头像，单图且无「移除」）。
+- **接入点（5 处）**：`AgentImagePicker`（**发布页「AI 帮写」**用整块拖放区，≤3 张；**智能助手页**改用 `hide-add` 模式 —— 只显示缩略图，上传入口是输入框右下角的小图片图标与整块对话区拖拽，详见 3.12）、`PublishForm`（描述配图，≤9 张，上传后以 Markdown 插入描述光标处）、`EditItemDialog`（多图，保存时统一上传并提示待上传张数）、`ManageGoods`（商品主图，单图）、`UserSettingsDialog`（头像，单图且无「移除」）。
+- **共用预检**：`src/utils/imageFile.ts` 的 `filterImageFiles()`（类型 / 大小 / 张数三重校验，`AgentImagePicker` 的外部触发路径与拖放区口径一致）；常量 `IMAGE_ALLOWED_TYPES` / `IMAGE_MAX_SIZE` 与 `api/upload.ts` 对齐。
 
 ## 4. 用户认证与权限
 
@@ -409,4 +412,10 @@ status 1（已认领）
 | `≤640px` | 侧栏折叠为 **62px 图标栏**（隐藏品牌文案、导航分组标题、未读角标等）；顶栏内边距收紧、只留头像；`page-wrap` 收紧；页头（welcome / section-head）改竖排；物品栅格与表单改单列；卡片与表格紧凑化；弹窗宽度自适应 |
 
 > 新增组件必须自带 `≤700px` 断点；跨组件的视觉改动一律放 `styles.css` 全局，避免出现多处重复定义导致漂移。
+
+### 7.5 页面宽度标准（`--page-max`）
+
+- `:root` 新增 `--page-max: 1120px`；`styles.css` 统一声明 `.page-section { width:100%; max-width:var(--page-max); margin:0 auto }`。
+- **所有页面容器不再各写宽度**（此前 `PublishForm` 920px、`AgentAssistant` 880px、`ShopCenter`/`ManageGoods`/`HelpCenter` 1080px，首页则跟随 `.page-wrap` ≈1104px，导致左右边距不一致），现统一引用该令牌：`PublishForm` / `ShopCenter` / `ManageGoods` / `HelpCenter` / `AgentAssistant` 均已改为 `var(--page-max)`。
+- 外层留白由 `.page-wrap { max-width:1320px; padding:46px 5.5% 80px }` 提供：1920 宽屏内容区约 1175px（页面 1120 居中后左右各留 ~27px），1440 屏内容区约 1063px（页面铺满，左右各留 66px 边距），**始终保留可见边距**。
 - 智能助手依赖后端 LLM（单次约 2~8 秒）与 `openai.agent_enabled` 开关，未开启时前端降级为提示态。

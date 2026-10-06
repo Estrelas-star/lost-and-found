@@ -149,23 +149,26 @@ async function submitPost() {
           <h1>发布一条信息</h1>
           <p>描述得越清楚，物品越快回到主人身边。</p>
         </div>
-        <button type="button" class="ai-write-btn" @click="writeDialogVisible = true">✦ AI 帮写</button>
       </div>
     </div>
 
     <el-form ref="formRef" :model="form" :rules="rules" class="publish-form" label-position="top" @submit.prevent="submitPost">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="信息类型">
-            <el-radio-group v-model="form.type" class="publish-type">
-              <el-radio-button value="lost">我丢失了物品</el-radio-button>
-              <el-radio-button value="found">我捡到了物品</el-radio-button>
-            </el-radio-group>
+          <el-form-item label="物品名称" prop="title">
+            <el-input v-model="form.title" placeholder="例如：黑色折叠雨伞" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="物品名称" prop="title">
-            <el-input v-model="form.title" placeholder="例如：黑色折叠雨伞" />
+          <el-form-item label="信息类型">
+            <!-- 类型选项收窄，右侧留给「AI 帮写」按钮 -->
+            <div class="publish-type-row">
+              <el-radio-group v-model="form.type" class="publish-type">
+                <el-radio-button value="lost">我丢失了物品</el-radio-button>
+                <el-radio-button value="found">我捡到了物品</el-radio-button>
+              </el-radio-group>
+              <button type="button" class="ai-write-btn" @click="writeDialogVisible = true">✦ AI 帮写</button>
+            </div>
           </el-form-item>
         </el-col>
       </el-row>
@@ -209,9 +212,11 @@ async function submitPost() {
 </template>
 
 <style scoped>
-.publish-page{max-width:920px;margin:0 auto}.publish-intro{margin-bottom:24px}.publish-intro h1{margin:12px 0 8px;font-size:32px}.publish-intro p{margin:0;color:var(--muted)}.publish-form{padding:26px;background:#fff;border:1px solid var(--line);border-radius:14px}.publish-control,.publish-form .el-input,.publish-form .el-textarea,.publish-form .el-radio-group{width:100%}.publish-type{display:flex}.publish-type .el-radio-button{flex:1}.publish-type :deep(.el-radio-button__inner){width:100%}.publish-type :deep(.el-radio-button__inner:hover){color:var(--el-color-primary)}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner){background-color:var(--el-color-primary);border-color:var(--el-color-primary);box-shadow:-1px 0 0 0 var(--el-color-primary);color:#fff}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner:hover){background-color:var(--el-color-primary-dark-2);border-color:var(--el-color-primary-dark-2);box-shadow:-1px 0 0 0 var(--el-color-primary-dark-2);color:#fff}.publish-form :deep(.el-textarea){width:100%}.publish-form :deep(.el-textarea__inner){width:100%}.publish-submit{width:100%;margin-top:8px}.desc-dropzone{padding:4px;border-radius:8px;transition:outline .15s;width:100%;box-sizing:border-box}.desc-dropzone.drag-over{outline:2px dashed var(--green);background:#f0f8f3}@media(max-width:700px){.publish-page{width:100%}.publish-form{padding:18px}.publish-form :deep(.el-col){max-width:100%;flex:0 0 100%}}
+.publish-page{max-width:var(--page-max);margin:0 auto}.publish-intro{margin-bottom:24px}.publish-intro h1{margin:12px 0 8px;font-size:32px}.publish-intro p{margin:0;color:var(--muted)}.publish-form{padding:26px;background:#fff;border:1px solid var(--line);border-radius:14px}.publish-control,.publish-form .el-input,.publish-form .el-textarea,.publish-form .el-radio-group{width:100%}.publish-type{display:flex}.publish-type .el-radio-button{flex:1}.publish-type :deep(.el-radio-button__inner){width:100%}.publish-type :deep(.el-radio-button__inner:hover){color:var(--el-color-primary)}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner){background-color:var(--el-color-primary);border-color:var(--el-color-primary);box-shadow:-1px 0 0 0 var(--el-color-primary);color:#fff}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner:hover){background-color:var(--el-color-primary-dark-2);border-color:var(--el-color-primary-dark-2);box-shadow:-1px 0 0 0 var(--el-color-primary-dark-2);color:#fff}.publish-form :deep(.el-textarea){width:100%}.publish-form :deep(.el-textarea__inner){width:100%}.publish-submit{width:100%;margin-top:8px}.desc-dropzone{padding:4px;border-radius:8px;transition:outline .15s;width:100%;box-sizing:border-box}.desc-dropzone.drag-over{outline:2px dashed var(--green);background:#f0f8f3}@media(max-width:700px){.publish-page{width:100%}.publish-form{padding:18px}.publish-form :deep(.el-col){max-width:100%;flex:0 0 100%}}
 .publish-intro-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.ai-write-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border:1px solid var(--green);border-radius:9px;background:#f2faf6;color:var(--green);font-size:13px;font-weight:700;transition:background .15s ease,color .15s ease}
-.ai-write-btn:hover{background:var(--green);color:#fff}
-@media(max-width:700px){.ai-write-btn{width:100%;justify-content:center}}
+.ai-write-btn{display:inline-flex;align-items:center;gap:6px;padding:0 16px;height:38px;border:0;border-radius:10px;background:linear-gradient(135deg,var(--green) 0%,var(--green-dark) 100%);color:#fff;font-size:13px;font-weight:700;white-space:nowrap;box-shadow:0 6px 14px #42b9833d;transition:box-shadow var(--dur) var(--ease),transform var(--dur) var(--ease)}
+.ai-write-btn:hover{box-shadow:0 9px 20px #42b98359;transform:translateY(-1px)}
+.publish-type-row{display:flex;align-items:center;gap:12px;width:100%}
+.publish-type-row .publish-type{flex:0 1 300px;min-width:0}
+@media(max-width:700px){.publish-type-row{flex-direction:column;align-items:stretch}.publish-type-row .publish-type{flex:1 1 auto}.ai-write-btn{width:100%;justify-content:center}}
 </style>

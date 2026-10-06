@@ -107,7 +107,7 @@ const pad2 = (n: number) => String(n).padStart(2, '0')
 </template>
 
 <style scoped>
-.help-page{max-width:1080px}
+.help-page{max-width:var(--page-max)}
 /* 用户组切换 */
 .help-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:22px 0 14px}
 .help-group{display:flex;flex-direction:column;gap:3px;padding:12px 15px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface);text-align:left;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),background var(--dur) var(--ease)}

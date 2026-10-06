@@ -281,7 +281,7 @@ onMounted(loadGoods)
 </template>
 
 <style scoped>
-.shop-page{max-width:1080px}
+.shop-page{max-width:var(--page-max)}
 .shop-credit-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:18px 22px;margin:22px 0 8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-xs)}
 .shop-credit-main{display:flex;align-items:baseline;gap:10px}
 .shop-credit-label{color:var(--muted);font-size:12px}
