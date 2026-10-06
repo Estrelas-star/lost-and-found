@@ -88,7 +88,13 @@ const filteredItems = computed(() => {
 })
 const detailImages = computed(() => selectedItem.value?.images?.length ? selectedItem.value.images : [])
 const detailViews = computed(() => 128 + (selectedItem.value?.id ?? 0) * 17)
-const todayLabel = 'WED · 06.17'
+const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+const todayLabel = (() => {
+  const d = new Date()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${WEEKDAYS[d.getDay()]} · ${mm}.${dd}`
+})()
 const commentText = ref('')
 const replyTarget = ref<{ id: number, author: string } | null>(null)
 const detailComments = computed(() => selectedItem.value ? store.comments.filter((comment) => comment.itemId === selectedItem.value?.id) : [])
