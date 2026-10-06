@@ -347,46 +347,10 @@
   background: #c9d8d0;
 }
 
-.dialog-control {
-  width: 100%;
-}
-
-.dialog-submit {
-  width: 100%;
-  margin-top: 4px;
-}
-
 .detail-modal-rich {
   width: min(620px,100%);
   padding: 18px;
   overflow: hidden;
-}
-
-.detail-modal-actions {
-  height: 34px;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-}
-
-.modal-action {
-  padding: 7px 10px;
-  border-radius: 7px;
-  color: #687871;
-  font-size: 11px;
-}
-
-.modal-action:hover,
-.modal-action.active {
-  background: #e4f4ed;
-  color: var(--green);
-}
-
-.detail-modal-actions .modal-close {
-  position: static;
-  margin-left: 4px;
-  font-size: 22px;
 }
 
 .detail-gallery {

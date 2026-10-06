@@ -5,8 +5,7 @@ import {
   listItems, getItem, listTags, listLocations, listMyItems, getItemCount,
   updateItem as updateItemApi, deleteItem as deleteItemApi, closeItem as closeItemApi,
   claimItem, cancelClaim, confirmItem,
-  listReports, reviewReport as reviewReportApi,
-  type ReportDTO, type ListReportsParams, type TagDTO, type LocationDTO, type ListItemsParams, type ItemDTO,
+  type TagDTO, type LocationDTO, type ListItemsParams, type ItemDTO,
 } from '../api/item'
 import { setAuth, clearAuth, getToken, getStoredUser } from '../utils/auth'
 import type { UserResponse } from '../api/types'
@@ -297,40 +296,6 @@ export const useAppStore = defineStore('app', () => {
     return m
   })
 
-  // —— 举报审核（审核员）：真实接口 GET /admin/reports（初始为空，失败保持空态） ——
-  const reports = ref<ReportDTO[]>([])
-  async function fetchReports(params: ListReportsParams = { target_type: 0 }) {
-    try {
-      const res = await listReports(params)
-      const list = (res.data?.items ?? []).map((r) => ({ ...r }))
-      await Promise.all(list.map(async (r) => {
-        if (r.target_type === 0 && !r.item) {
-          try { const it = await getItem(r.target_id); r.item = it.data } catch { /* 忽略 */ }
-        }
-      }))
-      reports.value = list
-    } catch {
-      // 拉取失败（未登录 / 无权限 / 网络异常）：保持空列表，界面显示空态
-    }
-  }
-  async function reviewReport(id: number, payload: { status: 1 | 2 | 3; audit_comment?: string }) {
-    try {
-      const res = await reviewReportApi(id, payload)
-      const updated = res.data
-      const idx = reports.value.findIndex((r) => r.id === id)
-      if (idx >= 0 && updated) reports.value[idx] = updated
-      return updated
-    } catch {
-      // 后端未就绪：本地直接改状态演示
-      const r = reports.value.find((x) => x.id === id)
-      if (r) {
-        r.status = payload.status
-        r.audit_comment = payload.audit_comment
-        r.auditor_id = Number(authUser.value?.id ?? 0)
-        r.audited_at = new Date().toISOString()
-      }
-    }
-  }
   // —— 物品真实增删改（本人，调后端后刷新列表）——
   async function saveRemoteItem(id: number, payload: { title?: string; description?: string; location_detail?: string; tag_ids?: number[] }) {
     await updateItemApi({ id, ...payload })
@@ -488,5 +453,5 @@ export const useAppStore = defineStore('app', () => {
     })
     await fetchComments(comment.itemId)
   }
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, fetchAllUnreadIds, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, fetchAllUnreadIds, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
 })

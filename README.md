@@ -1,6 +1,6 @@
 # 拾光 · 校园失物招领系统
 
-拾光是一个面向校园场景的失物招领系统，覆盖物品发现、信息发布、认领归还、举报审核、公告管理和数据总览等核心流程。项目采用 **Vue 3 + Vite + TypeScript + Pinia + Vue Router + Element Plus** 构建，前端已与 **Go 后端真实 API 完成联调**（非 Mock 数据），并实现了基于路由守卫的前端 RBAC 权限控制。当前版本的互动功能以**评论**（发评论 / 楼中楼回复）与**认领 / 线索**（申请认领、我捡到了、确认归还）为核心闭环。
+拾光是一个面向校园场景的失物招领系统，覆盖物品发现、信息发布、认领归还、公告管理和数据总览等核心流程。项目采用 **Vue 3 + Vite + TypeScript + Pinia + Vue Router + Element Plus** 构建，前端已与 **Go 后端真实 API 完成联调**（非 Mock 数据），并实现了基于路由守卫的前端 RBAC 权限控制。当前版本的互动功能以**评论**（发评论 / 楼中楼回复）与**认领 / 线索**（申请认领、我捡到了、确认归还）为核心闭环。
 
 ## 技术栈
 
@@ -23,7 +23,6 @@
 | 评论 | `GET /item/:id/comments`、`POST /item/:id/comments/create`、`GET /item/:id/comments/replies`、`PATCH /item/:id/comments/update` |
 | 通知 | `GET /notifications`（limit/offset 分页）、`GET /notifications/unread-count`、`GET /notifications/:id`（查看即已读）、`PUT /notifications/read` 批量已读、`DELETE /notifications` 批量删除、`POST /admin/notifications` 管理员广播 |
 | 公告 | 公开 `GET /announcement`、`GET /announcement/:id`；管理端 `GET/POST /admin/announcement`、`POST /admin/announcement/create|update`、`DELETE /admin/announcement/:id` |
-| 举报 | `GET /admin/reports`、`POST /admin/reports/:id/review` |
 | 统计 | `GET /admin/stats/overview|trend|locations|time-heatmap|items/stagnant|items/high-view|return-duration|distribution|funnel` |
 | 上传 | `POST /upload/image`（multipart，JPG/PNG/WEBP ≤ 5MB，自动重试） |
 | 积分商城 | 公开 `GET /shop/goods/list`（关键词 + 积分区间筛选）、`GET /shop/goods/:id`；用户 `POST /shop/goods/:id/redeem`（兑换，需已绑 QQ）、`GET /shop/orders`（我的兑换记录）；管理员 `POST /shop/goods/create` / `update` / `delete`（role≥1，软删即下架） |
@@ -58,9 +57,7 @@
 
 ### 失物招领管理员端（后端 `role = 1`）
 
-- **审核中心**：含两个 Tab：
-  - **帖子审核**：展示待审核物品并支持通过 / 驳回（后端当前无「待审核」状态，该 Tab 以演示数据兜底）。
-  - **举报审核**：对接真实举报接口，展示举报列表（被举报帖子、举报人、原因、描述），可【通过】/【驳回】/【已处理】并填写审核意见。
+- **审核中心**：帖子审核 —— 展示待审核物品并支持通过 / 驳回（后端当前无「待审核」状态，以演示数据兜底）；举报模块后端未实现（仅建表 + 错误码占位、无路由），故前端不提供举报入口与举报审核。
 - **物品管理**：真实后端物品表格，支持按名称搜索、按类型/状态筛选（寻找中/招领中/已认领/已关闭），可编辑、下架（`close`）、删除（二次确认）；后端未开放管理员改/删/下架他人物品权限时给出友好提示。
 - **商品管理**（`/app/goods`）：积分商城商品的增删改——列表（关键词搜索 + 分页）、新增/编辑对话框（名称、描述、所需积分、库存、排序号、图片上传复用 `POST /upload/image`）、下架（软删除，二次确认）。按后端角色职责划分，商城商品由 role=1 服务管理员维护。
 
