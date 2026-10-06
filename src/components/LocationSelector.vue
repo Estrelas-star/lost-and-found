@@ -5,7 +5,14 @@ import type { LocationDTO } from '../api/item'
 
 const store = useAppStore()
 
-defineProps<{ modelValue: string; locationId?: number | null }>()
+const props = withDefaults(defineProps<{
+  modelValue: string
+  locationId?: number | null
+  /** 级联框占位文案：默认给足信息；智能助手页传「地点」以与「标签」对齐（不改其它页面的默认文案） */
+  placeholder?: string
+}>(), {
+  placeholder: '请选择校区 / 建筑 / 地点',
+})
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'update:locationId', value: number | null): void
@@ -128,7 +135,7 @@ defineExpose({ validate, reset, setPath, setLocation })
 
 <template>
   <div class="location-selector">
-    <el-cascader v-if="usingReal" v-model="selectedPath" :options="cascaderOptions" :props="{ expandTrigger: 'hover' }" placeholder="请选择校区 / 建筑 / 地点" class="loc-cascader" clearable />
+    <el-cascader v-if="usingReal" v-model="selectedPath" :options="cascaderOptions" :props="{ expandTrigger: 'hover' }" :placeholder="props.placeholder" class="loc-cascader" clearable />
     <template v-else>
       <el-select v-model="mockState.campus" placeholder="请选择校区" class="loc-col">
         <el-option v-for="o in campusOptions" :key="o.value" :label="o.label" :value="o.value" />

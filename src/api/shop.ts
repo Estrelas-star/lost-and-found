@@ -87,10 +87,14 @@ export interface UpdateGoodRequest {
   sort_order?: number
 }
 
-/** 把可选查询参数拼成 query string（空串/undefined/null 一律不发） */
-function toQuery(params: Record<string, string | number | undefined | null>): string {
+/**
+ * 把可选查询参数拼成 query string（空串 / undefined / null 一律不发）
+ * 形参用 object 而非 Record<...>：interface 没有隐式索引签名，直接传 ListGoodsParams 会报
+ * 「Index signature for type 'string' is missing」（运行期行为不变）。
+ */
+function toQuery(params: object): string {
   const qs = new URLSearchParams()
-  Object.entries(params).forEach(([k, v]) => {
+  Object.entries(params).forEach(([k, v]: [string, unknown]) => {
     if (v !== undefined && v !== null && v !== '') qs.append(k, String(v))
   })
   const q = qs.toString()

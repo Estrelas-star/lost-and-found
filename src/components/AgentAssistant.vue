@@ -391,19 +391,24 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 
       <!-- 输入区（固定在面板底部）：已选图片 / 标签·地点胶囊 / 输入框 / 重新开始·发送 -->
       <div class="agent-composer">
-        <!-- 已选图片：只显示缩略图，上传入口是输入框右下角的小图片图标 + 整块拖拽 -->
-        <AgentImagePicker ref="imagePickerRef" v-model="images" :max="3" :disabled="!canSend" hide-add class="agent-images" />
+          <!-- 已选图片：只显示缩略图，上传入口是输入框右下角的小图片图标 + 整块拖拽 -->
+          <!-- v-show：无图时整块隐藏（.aip 无图时高度为 0 却仍占一个 flex 槽位，会让 composer 的 gap 在输入行上方多出一段间距） -->
+          <AgentImagePicker v-show="images.length" ref="imagePickerRef" v-model="images" :max="3" :disabled="!canSend" hide-add class="agent-images" />
 
         <!-- 输入区：左边「标签 | 地点」胶囊、中间多行输入、右边「重新开始 / 发送」竖列 -->
         <div class="agent-input-row">
-          <div class="agent-extras">
-            <span class="agent-extras-label">可选</span>
-            <div class="agent-extras-capsule" :class="{ 'is-on': hasExtras }">
-              <el-select v-model="selectedTags" multiple collapse-tags placeholder="标签" class="agent-extra-tags">
-                <el-option v-for="t in tagOptions" :key="t.id" :label="t.name" :value="t.name" />
-              </el-select>
-              <span class="agent-extras-divider" aria-hidden="true"></span>
-              <LocationSelector ref="locationSelectorRef" v-model="locationLabel" v-model:location-id="locationId" class="agent-extra-location" />
+            <div class="agent-extras">
+              <!-- 「可选」与胶囊同一行（垂直居中），不再单独占一行高度 -->
+              <span class="agent-extras-label">可选</span>
+              <div class="agent-extras-capsule" :class="{ 'is-on': hasExtras }">
+                <!-- 标签（上） / 地点（下）上下两行，两行文字都居中 -->
+                <div class="agent-extras-fields">
+                  <el-select v-model="selectedTags" multiple collapse-tags placeholder="标签" class="agent-extra-tags">
+                    <el-option v-for="t in tagOptions" :key="t.id" :label="t.name" :value="t.name" />
+                  </el-select>
+                  <span class="agent-extras-divider" aria-hidden="true"></span>
+                  <LocationSelector ref="locationSelectorRef" v-model="locationLabel" v-model:location-id="locationId" placeholder="地点" class="agent-extra-location" />
+                </div>
               <button v-if="hasExtras" type="button" class="agent-extras-clear" title="清除标签与地点" @click="clearExtras">×</button>
             </div>
           </div>
@@ -482,7 +487,7 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 /* 整页不滚动：页面高度锁在视口内（顶栏 76 + page-wrap 上下内边距 46/80），只有对话流内部滚动 */
 .agent-page{display:flex;flex-direction:column;height:calc(100vh - 202px);height:calc(100dvh - 202px);max-width:var(--page-max);margin:0 auto}
 /* 展开示例窗时右侧多占一列，对话面板保持原有宽度 */
-.agent-page.has-drawer{max-width:calc(var(--page-max) + 342px)}
+.agent-page.has-drawer{max-width:calc(var(--page-max) + 352px)}
 .agent-disabled{margin-top:28px}
 /* 对话面板 + 示例弹窗同一行：弹窗的梯形按钮正好落在面板右边缘 */
 .agent-main{display:flex;align-items:stretch;flex:1;min-height:0;margin-top:22px}
@@ -498,12 +503,16 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 .agent-guide-chip{padding:8px 13px;border:1px solid var(--line);border-radius:18px;background:var(--surface-soft);color:#4b615a;font-size:12px;line-height:1.4;text-align:left;cursor:pointer}
 .agent-guide-chip:hover{border-color:var(--green);color:var(--green);background:#f2faf6}
 .agent-guide-note{margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.6}
-/* —— 示例弹窗：与对话面板同一行；梯形按钮短边向右，紧贴面板右边缘 —— */
-.agent-drawer{position:relative;flex:0 0 auto;width:0;transition:width var(--dur) var(--ease)}
-.agent-page.has-drawer .agent-drawer{flex:0 0 342px;width:342px;padding-left:26px}
+/* —— 示例弹窗：与对话面板同一行；梯形按钮带过渡地在「面板右缘（收起）↔ 示例框右缘（展开）」之间滑动 —— */
+.agent-drawer{position:relative;flex:0 0 auto;width:0;transition:width var(--dur) var(--ease),padding-left var(--dur) var(--ease)}
+/* 26（收起态按钮位）+ 300（示例框）+ 26（展开态按钮位）；flex-basis 保持 auto 才能让 width 过渡生效 */
+.agent-page.has-drawer .agent-drawer{width:352px;padding-left:26px}
 .agent-drawer-body{display:none}
-.agent-page.has-drawer .agent-drawer-body{display:block;width:300px;height:100%;padding:16px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card)}
-.agent-drawer-toggle{position:absolute;left:0;top:14px;display:grid;place-items:center;width:26px;height:96px;padding:0;border:0;background:var(--green);color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;writing-mode:vertical-rl;cursor:pointer;clip-path:polygon(0 0,100% 14%,100% 86%,0 100%);transition:background var(--dur) var(--ease)}
+.agent-page.has-drawer .agent-drawer-body{display:block;width:300px;height:100%;padding:16px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);animation:agent-drawer-in var(--dur) var(--ease) both}
+@keyframes agent-drawer-in{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+.agent-drawer-toggle{position:absolute;left:0;top:14px;display:grid;place-items:center;width:26px;height:96px;padding:0;border:0;background:var(--green);color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;writing-mode:vertical-rl;cursor:pointer;clip-path:polygon(0 0,100% 14%,100% 86%,0 100%);transition:transform var(--dur) var(--ease),background var(--dur) var(--ease)}
+/* 展开时梯形滑到最右侧，吸附在「试试这样说」示例框的右边缘（26 左位 + 300 框宽 = 326） */
+.agent-page.has-drawer .agent-drawer-toggle{transform:translateX(326px)}
 .agent-drawer-toggle:hover{background:var(--green-dark)}
 /* 弹窗较窄：示例竖排更易读 */
 @media(min-width:1200px){
@@ -551,27 +560,36 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 .agent-similar-link{color:var(--green);font-size:12px;text-decoration:underline;text-underline-offset:3px}
 .agent-composer{flex:0 0 auto;display:flex;flex-direction:column;gap:12px;padding:14px 18px 16px;border-top:1px solid #edf1ed;background:#fff;border-radius:0 0 var(--radius-lg) var(--radius-lg)}
 .agent-images{width:100%}
-.agent-input-row{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
-/* 左：标签 / 地点装进一个胶囊，中间用分割线隔开；上方左对齐写小字「可选」 */
-.agent-extras{flex:0 0 250px;display:flex;flex-direction:column;gap:6px}
-.agent-extras-label{padding-left:12px;color:var(--muted-2);font-size:10px;font-weight:700;letter-spacing:1.2px}
-.agent-extras-capsule{display:flex;align-items:center;height:40px;padding:0 8px 0 10px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--surface);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+/* 三块（可选胶囊 / 输入框 / 按钮列）保持等高：统一取 --row-h；「可选」小字在胶囊之外，不计入高度 */
+.agent-input-row{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;--row-h:96px}
+/* 左：标签（上）/ 地点（下）上下两行塞进一个胶囊，两行之间一条横线；「可选」与胶囊同行并垂直居中（不占额外高度） */
+.agent-extras{flex:0 0 250px;display:flex;align-items:center;gap:8px}
+.agent-extras-label{flex:0 0 auto;white-space:nowrap;color:var(--muted-2);font-size:10px;font-weight:700;letter-spacing:1.2px}
+.agent-extras-capsule{flex:1 1 auto;min-width:0;display:flex;align-items:center;height:var(--row-h);padding:0 8px 0 10px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--surface);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
 .agent-extras-capsule:focus-within{box-shadow:0 0 0 2px var(--green-soft)}
 .agent-extras-capsule.is-on{border-color:var(--green);background:var(--green-soft)}
-.agent-extras-divider{flex:0 0 1px;align-self:stretch;margin:9px 7px;background:var(--line)}
+.agent-extras-fields{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+.agent-extras-divider{flex:0 0 1px;height:1px;margin:0 10px;background:var(--line)}
 .agent-extras-clear{flex:0 0 auto;width:20px;height:20px;margin-left:5px;padding:0;border:0;border-radius:50%;background:#00000014;color:#6b7a73;font-size:13px;line-height:1;display:grid;place-items:center;cursor:pointer}
 .agent-extras-clear:hover{background:#e06c75;color:#fff}
-.agent-extra-tags{flex:1 1 92px;min-width:0}
-.agent-extra-location{flex:1 1 116px;min-width:0}
+.agent-extra-tags,.agent-extra-location{width:100%;min-width:0}
 .agent-extras-capsule :deep(.el-select),.agent-extras-capsule :deep(.el-input),.agent-extras-capsule :deep(.el-cascader){width:100%}
 .agent-extras-capsule :deep(.el-select__wrapper),.agent-extras-capsule :deep(.el-input__wrapper){background:transparent!important;box-shadow:none!important;padding:0 4px}
 .agent-extras-capsule :deep(.el-select__placeholder),.agent-extras-capsule :deep(.el-input__inner){font-size:12px}
+/* 两行文字居中：select 的占位是绝对定位块（只能 text-align）、tag 列表与 cascader 输入框分别用两种手段覆盖 */
+.agent-extras-capsule :deep(.el-select__selection),
+.agent-extras-capsule :deep(.el-select__placeholder),
+.agent-extras-capsule :deep(.el-select__selected-item),
+.agent-extras-capsule :deep(.el-cascader__tags),
+.agent-extras-capsule :deep(input){text-align:center}
+.agent-extras-capsule :deep(.el-select__selection),
+.agent-extras-capsule :deep(.el-cascader__tags){justify-content:center}
 .agent-extras-capsule :deep(.location-selector){gap:0;flex-wrap:nowrap;width:100%}
 .agent-extras-capsule :deep(.location-selector .loc-cascader){flex:1 1 100%}
-/* 中：输入框（右下角是字数统计与小图片图标） */
+/* 中：输入框（右下角是字数统计与小图片图标）—— 与左右两块同高 */
 .agent-input-box{position:relative;flex:1 1 280px;min-width:240px}
 .agent-input-box :deep(.el-textarea){width:100%}
-.agent-input-box :deep(.el-textarea__inner){min-height:96px!important;padding:10px 12px 30px;border-radius:var(--radius-md);box-shadow:0 0 0 1px var(--line) inset}
+.agent-input-box :deep(.el-textarea__inner){height:var(--row-h);min-height:var(--row-h)!important;padding:10px 12px 30px;border-radius:var(--radius-md);box-shadow:0 0 0 1px var(--line) inset}
 .agent-input-box :deep(.el-textarea__inner:focus){box-shadow:0 0 0 1px var(--green) inset}
 .agent-input-tools{position:absolute;right:10px;bottom:7px;display:flex;align-items:center;gap:8px}
 .agent-count{color:var(--muted-2);font-size:11px;font-variant-numeric:tabular-nums}
@@ -579,12 +597,12 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 .agent-img-btn svg{width:17px;height:17px}
 .agent-img-btn:hover:not(:disabled){background:var(--green-soft);color:var(--green)}
 .agent-img-btn:disabled{opacity:.45;cursor:not-allowed}
-/* 右：「重新开始」（上）与「发送」（下）同宽，竖列对齐 */
-.agent-actions-col{flex:0 0 132px;display:flex;flex-direction:column;gap:8px}
-.agent-restart{display:flex;align-items:center;justify-content:center;gap:5px;height:36px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--green-soft);color:var(--ink);font-size:12px;font-weight:600;cursor:pointer;transition:border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+/* 右：「重新开始」（上）与「发送」（下）等宽等高（各 40px），整体在列内竖直居中；列宽收窄到 108px */
+.agent-actions-col{flex:0 0 108px;height:var(--row-h);display:flex;flex-direction:column;justify-content:center;gap:8px}
+.agent-restart{display:flex;align-items:center;justify-content:center;gap:5px;flex:0 0 auto;height:40px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--green-soft);color:var(--ink);font-size:12px;font-weight:600;cursor:pointer;transition:border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
 .agent-restart:hover{border-color:var(--green);color:var(--green)}
 .agent-restart-icon{font-size:14px;line-height:1}
-.agent-send{display:flex;align-items:center;justify-content:center;gap:6px;height:40px;border:0;border-radius:var(--radius-md);background:var(--green);color:#fff;font-size:13px;font-weight:700;box-shadow:0 5px 12px #42b98330;cursor:pointer;transition:background var(--dur) var(--ease)}
+.agent-send{display:flex;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;height:40px;border:0;border-radius:var(--radius-md);background:var(--green);color:#fff;font-size:13px;font-weight:700;box-shadow:0 5px 12px #42b98330;cursor:pointer;transition:background var(--dur) var(--ease)}
 .agent-send-icon{width:16px;height:16px}
 .agent-send:hover:not(:disabled){background:var(--green-dark)}
 .agent-send:disabled{background:#b9c4bf;box-shadow:none;cursor:not-allowed}
@@ -596,17 +614,20 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
   .agent-drawer{order:-1;width:auto}
   .agent-page.has-drawer .agent-drawer{flex:0 0 auto;width:auto;padding-left:0}
   .agent-page.has-drawer .agent-drawer-body{width:auto;max-height:min(38vh,300px);margin-top:10px}
-  .agent-drawer-toggle{position:static;width:auto;height:auto;padding:6px 16px;font-size:12px;letter-spacing:0;writing-mode:horizontal-tb;clip-path:polygon(0 0,96% 0,100% 100%,0 100%)}
+  .agent-drawer-toggle{position:static;transform:none;width:auto;height:auto;padding:6px 16px;font-size:12px;letter-spacing:0;writing-mode:horizontal-tb;clip-path:polygon(0 0,96% 0,100% 100%,0 100%)}
 }
 @media(max-width:900px){
   .agent-extras{flex:1 1 100%}
 }
 @media(max-width:700px){
   .agent-bubble{max-width:88%}
-  .agent-input-row{align-items:stretch}
+  /* 窄屏三块改为上下排列，不再需要等高（--row-h 置为 auto 即取消固定高度） */
+  .agent-input-row{align-items:stretch;--row-h:auto}
   .agent-extras,.agent-input-box,.agent-actions-col{flex:1 1 100%;min-width:0}
-  .agent-actions-col{flex-direction:row}
-  .agent-actions-col .agent-restart,.agent-actions-col .agent-send{flex:1}
+  .agent-extras-capsule{height:auto;padding:6px 8px 6px 10px}
+  .agent-input-box :deep(.el-textarea__inner){min-height:88px!important}
+  .agent-actions-col{flex-direction:row;height:auto}
+  .agent-actions-col .agent-restart,.agent-actions-col .agent-send{flex:1 1 0;height:40px}
 }
 /* ≤640px 时 page-wrap 内边距变为 30/60，可用高度相应多出 36px */
 @media(max-width:640px){
