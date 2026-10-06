@@ -191,6 +191,16 @@
 - [ ] 连接 Vercel 仓库，配置构建、输出目录与环境变量（`VITE_IMAGE_BASE_URL`）
 - [ ] 部署预览并验证登录、RBAC 与单页路由
 
+### 阶段二十二：积分明细（阻塞于后端接口，暂不做假数据）
+
+> **阻塞原因**（2026-10-07 核实）：后端 `credit_logs` 表与写入均已就绪（认领发分 `creditLogTypeClaimReward=1`、管理员加减分 `ChangeUserCreditRequest`、商城兑换 `creditLogTypeShopRedeem=4` 都会落流水），但**没有任何查询接口** —— `common_response_code.md` 的 `50002 CodeCreditLogNotFound` 明确标注「预留（无流水查询接口）」，`initialization/router.go` 中 credit 相关只有 `POST /admin/add-credit`，DAO 也只有写入。
+> **当前前端处理**：`/app/shop` 新增「积分明细」Tab，**只做占位说明，不展示任何本地假数据**；替代查看途径是顶栏铃铛里的 `type=5 积分变动` 通知（通知列表项不返回 `content`，逐条查详情会顺带标记已读，故未被用于拼装该页）。
+
+- [ ] 后端补 `GET /user/credit/logs`（建议 `limit` / `offset` 分页、`created_at DESC`，返回 `id` / `change_amount` / `before_amount` / `after_amount` / `type` / `description` / `related_id` / `created_at`）
+- [ ] 前端 `src/api/` 新增积分流水接口封装与 DTO（字段对齐 `credit_logs`）
+- [ ] 积分明细 Tab 由占位改为真实列表：时间 / 类型 / 变动金额（+绿 −红）/ 变动后余额 / 说明
+- [ ] 类型中文映射：0 拾金不昧奖励 / 1 认领成功奖励 / 2 违规扣分 / 3 系统调整 / 4 积分兑换
+
 ### 远期规划（不在本轮迭代内）
 
 - [ ] 后端补充「待审核」状态与发布审核流程（当前创建即发布）
@@ -219,6 +229,7 @@
 | M6.10 | 积分商城（兑换前台 + 我的兑换记录 + 商品管理） | ✅ 已完成 |
 | M6.11 | 智能助手（对话式发帖 / 找匹配 / AI 帮写 / 相似推荐） | ✅ 已完成 |
 | M6.12 | 合并修复 + 通知契约同步 + 帮助中心 | ✅ 已完成 |
+| M6.13 | 智能助手交互调整（统一头像 / 标签地点同行 / 示例右侧弹窗 + cookie）+ 全站上传区统一 + 积分明细 Tab | ✅ 已完成（积分明细为占位，阻塞于后端 `GET /user/credit/logs`） |
 | M7 | 系统管理员数据大屏（极简版）接入 ECharts | ⏳ 待完成 |
 | M8 | 界面美化（设计令牌 + 视觉升级）与移动端适配 | ✅ 已完成（移动端断点此前已就绪，本轮完成美化） |
 | M9 | Vercel 部署上线 | ⏳ 待完成 |

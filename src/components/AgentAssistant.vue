@@ -15,6 +15,7 @@ import type { AgentAction, AgentChatResponse, AgentDraft, AgentMatchBrief, Agent
 import LocationSelector from './LocationSelector.vue'
 import AgentImagePicker from './AgentImagePicker.vue'
 import { resolveImageUrl } from '../utils/image'
+import { getCookie, setCookie } from '../utils/cookie'
 
 const emit = defineEmits<{ 'open-item': [id: number] }>()
 const store = useAppStore()
@@ -92,13 +93,26 @@ const placeholder = computed(() => (sessionId.value
   ? '回复补充信息，或输入「确认」发布草稿、「取消」放弃'
   : '描述一下物品：丢了什么 / 在哪里捡到的 / 大概时间…（回车发送）'))
 
+// 智能助手统一头像：后端上传目录下的静态图，展示时经 resolveImageUrl 拼源（相对 URL 约定）
+const aiAvatarUrl = resolveImageUrl('/uploads/chensong.jpg')
+
+// —— 右侧「试试这样说」示例弹窗 ——
+// 开合状态不持久化，只有「是否已自动展示过」写 cookie：首次进入自动弹出一次，之后默认收起
+const GUIDE_COOKIE = 'lnf-agent-guide-seen'
+const drawerOpen = ref(false)
+function toggleDrawer() { drawerOpen.value = !drawerOpen.value }
+
 const EXAMPLES = [
   '我昨天下午在图书馆三楼丢了个黑色保温杯，带吸管的',
   '有人捡到黑色水杯吗',
   '我在食堂二楼捡到一张校园卡',
 ]
 
-function useExample(text: string) { input.value = text }
+function useExample(text: string) {
+  input.value = text
+  // 选完就收起示例窗，避免窄屏下压住对话区
+  drawerOpen.value = false
+}
 
 // 滚动到底部（不返回 Promise，避免各处 fire-and-forget 触发 lint 提示）
 function scrollToBottom() {
@@ -225,18 +239,41 @@ onMounted(() => {
     input.value = q.trim()
     ElMessage.info('已带入搜索关键词，按回车即可让助手帮你找')
   }
+  // 首次进入自动展开示例窗，并写 cookie（之后不再自动展开，用户可点梯形按钮随时开合）
+  if (!agentDisabled.value && !getCookie(GUIDE_COOKIE)) {
+    drawerOpen.value = true
+    setCookie(GUIDE_COOKIE, '1')
+  }
   scrollToBottom()
 })
 onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 </script>
 
 <template>
-  <section class="agent-page">
+  <section class="agent-page" :class="{ 'has-drawer': drawerOpen && !agentDisabled }">
     <div class="section-intro">
       <span class="eyebrow">AI ASSISTANT</span>
       <h1>智能助手</h1>
       <p>说一句话就能发帖，也能让助手帮你翻找匹配的帖子。</p>
     </div>
+
+    <!-- 右侧「试试这样说」示例弹窗：梯形按钮可开合；首次进入自动展开（cookie 记忆） -->
+    <aside v-if="!agentDisabled" class="agent-drawer" :class="{ 'is-open': drawerOpen }">
+      <button
+        type="button"
+        class="agent-drawer-toggle"
+        :aria-expanded="drawerOpen"
+        :title="drawerOpen ? '收起示例窗' : '展开示例窗，看看可以怎么说'"
+        @click="toggleDrawer"
+      >{{ drawerOpen ? '收起示例' : '试试这样说' }}</button>
+      <div class="agent-drawer-body">
+        <span class="agent-guide-title">试试这样说</span>
+        <div class="agent-guide-chips">
+          <button v-for="ex in EXAMPLES" :key="ex" type="button" class="agent-guide-chip" @click="useExample(ex)">{{ ex }}</button>
+        </div>
+        <p class="agent-guide-note">助手会先给出草稿，你回复「确认」或补充信息后才会真正发布；回复「取消」则放弃。也可以附上物品照片（最多 3 张）辅助识别。</p>
+      </div>
+    </aside>
 
     <!-- 120006：后端未开启 agent 功能时的降级态 -->
     <el-result
@@ -260,14 +297,6 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
       </div>
 
       <div ref="streamRef" class="agent-stream">
-        <div v-if="messages.length === 1" class="agent-guide">
-          <span class="agent-guide-title">试试这样说</span>
-          <div class="agent-guide-chips">
-            <button v-for="ex in EXAMPLES" :key="ex" type="button" class="agent-guide-chip" @click="useExample(ex)">{{ ex }}</button>
-          </div>
-          <p class="agent-guide-note">助手会先给出草稿，你回复「确认」或补充信息后才会真正发布；回复「取消」则放弃。也可以附上物品照片（最多 3 张）辅助识别。</p>
-        </div>
-
         <div v-for="m in messages" :key="m.id" class="agent-row" :class="m.role === 'user' ? 'agent-row-user' : 'agent-row-agent'">
           <div v-if="m.role === 'user'" class="agent-bubble agent-bubble-user">
             <span class="agent-bubble-text">{{ m.text }}</span>
@@ -276,7 +305,7 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
             </div>
           </div>
           <template v-else>
-            <div class="agent-avatar">✦</div>
+            <img class="agent-avatar" :src="aiAvatarUrl" alt="智能助手" />
             <div class="agent-bubble agent-bubble-agent" :class="{ 'agent-bubble-failed': m.failed }">
               <p class="agent-text">{{ m.text }}</p>
               <p v-if="m.stage && STAGE_HINT[m.stage]" class="agent-stage-hint">{{ STAGE_HINT[m.stage] }}</p>
@@ -301,6 +330,7 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
               <!-- 两步确认：仅 need_confirm 阶段出现（补充信息 / 明确确认才会建帖） -->
               <div v-if="m.stage === 'need_confirm'" class="agent-actions">
                 <el-button type="primary" size="small" :disabled="!canSend" @click="send('confirm')">确认发布</el-button>
+                <span class="agent-actions-hint">↓ 或直接在下方输入框回复「确认」/ 补充信息</span>
                 <el-button size="small" :disabled="!canSend" @click="send('cancel')">取消</el-button>
               </div>
 
@@ -338,7 +368,7 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
         </div>
 
         <div v-if="sending" class="agent-row agent-row-agent">
-          <div class="agent-avatar">✦</div>
+          <img class="agent-avatar" :src="aiAvatarUrl" alt="智能助手" />
           <div class="agent-bubble agent-bubble-agent agent-thinking">正在思考…<i class="agent-dots">···</i></div>
         </div>
       </div>
@@ -385,24 +415,37 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 </template>
 
 <style scoped>
-.agent-page{max-width:880px}
+/* 整页不滚动：页面高度锁在视口内（顶栏 76 + page-wrap 上下内边距 46/80），只有对话流内部滚动 */
+.agent-page{display:flex;flex-direction:column;height:calc(100vh - 202px);height:calc(100dvh - 202px);max-width:880px;transition:max-width var(--dur) var(--ease),padding-right var(--dur) var(--ease)}
+/* 示例窗展开时为它预留右侧空间：对话区整体左移，弹窗绝不压住对话（≤1199px 见下方媒体查询） */
+.agent-page.has-drawer{max-width:calc(880px + 316px);padding-right:316px}
 .agent-disabled{margin-top:28px}
-.agent-panel{margin-top:22px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-card)}
-.agent-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid #edf1ed;background:#fbfcfa}
+.agent-panel{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:22px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card)}
+.agent-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid #edf1ed;background:#fbfcfa;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
 .agent-status{font-size:11px;color:#9aa9a1;letter-spacing:.3px}
 .agent-status-on{color:var(--green);font-weight:700}
 .agent-restart{font-size:12px;color:#6b7a73;padding:5px 11px;border:1px solid var(--line);border-radius:16px;background:#fff}
 .agent-restart:hover{border-color:var(--green);color:var(--green)}
-.agent-stream{max-height:min(52vh,520px);min-height:260px;overflow-y:auto;padding:20px 18px;display:flex;flex-direction:column;gap:14px;background:#f9fbf9}
-.agent-guide{padding:4px 2px 10px}
+.agent-stream{flex:1;min-height:140px;overflow-y:auto;padding:20px 18px;display:flex;flex-direction:column;gap:14px;background:#f9fbf9}
 .agent-guide-title{display:block;font-size:11px;color:#9aa9a1;letter-spacing:1.4px;font-weight:700;margin-bottom:10px}
 .agent-guide-chips{display:flex;flex-wrap:wrap;gap:8px}
 .agent-guide-chip{padding:8px 13px;border:1px solid var(--line);border-radius:18px;background:#fff;color:#4b615a;font-size:12px;line-height:1.4}
 .agent-guide-chip:hover{border-color:var(--green);color:var(--green);background:#f2faf6}
 .agent-guide-note{margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.6}
+/* —— 右侧「试试这样说」示例弹窗：浮在页面右侧，梯形按钮贴在它的左边缘 —— */
+.agent-drawer{position:fixed;top:96px;right:0;width:300px;z-index:30;pointer-events:none}
+.agent-drawer-body{pointer-events:auto;padding:16px 16px 14px;background:var(--surface);border:1px solid var(--line);border-right:0;border-radius:var(--radius-lg) 0 0 var(--radius-lg);box-shadow:var(--shadow-pop);max-height:min(58vh,440px);overflow-y:auto;transform:translateX(100%);transition:transform var(--dur) var(--ease)}
+.agent-drawer.is-open .agent-drawer-body{transform:none}
+.agent-drawer-toggle{pointer-events:auto;position:absolute;left:-30px;top:14px;display:grid;place-items:center;width:30px;height:96px;padding:0;border:0;background:var(--green);color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;writing-mode:vertical-rl;cursor:pointer;clip-path:polygon(0 14%,100% 0,100% 100%,0 86%);transition:background var(--dur) var(--ease)}
+.agent-drawer-toggle:hover{background:var(--green-dark)}
+/* 宽屏下弹窗较窄：示例做成竖排更易读 */
+@media(min-width:1200px){
+  .agent-drawer .agent-guide-chips{flex-direction:column;gap:6px}
+  .agent-drawer .agent-guide-chip{width:100%;text-align:left;background:var(--surface-soft)}
+}
 .agent-row{display:flex;gap:10px;align-items:flex-start}
 .agent-row-user{justify-content:flex-end}
-.agent-avatar{width:30px;height:30px;flex:0 0 30px;border-radius:9px;background:var(--green);color:#fff;display:grid;place-items:center;font-size:14px}
+.agent-avatar{width:30px;height:30px;flex:0 0 30px;border-radius:9px;object-fit:cover;display:block;border:1px solid var(--line);background:var(--surface-sidebar)}
 .agent-bubble{max-width:78%;padding:11px 14px;border-radius:12px;font-size:13px;line-height:1.7;word-break:break-word}
 .agent-bubble-user{margin-left:auto;background:var(--green);color:#fff;border-bottom-right-radius:4px;white-space:pre-wrap}
 .agent-bubble-text{display:block;white-space:pre-wrap}
@@ -424,7 +467,9 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 .agent-draft-desc{margin:8px 0 0;color:#4b5563;font-size:12px;line-height:1.7}
 .agent-draft-meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;color:var(--muted);font-size:12px}
 .agent-draft-questions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.agent-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.agent-actions{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+/* 二次确认引导：夹在「确认发布」和「取消」之间，明确告诉用户也可以直接在下方回复 */
+.agent-actions-hint{padding:5px 12px;border:1px solid #f0dfb8;border-radius:var(--radius-pill);background:#fff7e6;color:#8a6b22;font-size:11.5px;line-height:1.5}
 .agent-matches{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 .agent-match{display:flex;gap:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
 .agent-match:hover{border-color:var(--green);box-shadow:0 6px 16px #19332f12}
@@ -437,9 +482,10 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 .agent-similar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:10px}
 .agent-similar-label{color:#9aa9a1;font-size:11px;letter-spacing:.6px}
 .agent-similar-link{color:var(--green);font-size:12px;text-decoration:underline;text-underline-offset:3px}
-.agent-composer{padding:14px 18px 16px;border-top:1px solid #edf1ed;background:#fff}
+.agent-composer{flex:0 0 auto;padding:14px 18px 16px;border-top:1px solid #edf1ed;background:#fff;border-radius:0 0 var(--radius-lg) var(--radius-lg)}
 .agent-image-row{margin-top:10px}
-.agent-extras{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:12px}
+/* 物品标签 / 地点：并排一行（≤700px 自动回落为单列） */
+.agent-extras{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:12px}
 .agent-extra{display:grid;grid-template-columns:88px 1fr;gap:10px;align-items:start}
 .agent-extra-label{color:#6b7a73;font-size:12px;line-height:32px}
 .agent-extra-label i{margin-left:4px;color:#b6bfba;font-size:10px;font-style:normal}
@@ -451,12 +497,24 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 .agent-send:disabled{background:#b9c4bf;box-shadow:none;cursor:not-allowed}
 .agent-tip{margin:10px 0 0;color:var(--muted);font-size:11px;line-height:1.6}
 .agent-cooldown{color:#c9952f}
+/* 中窄屏：示例窗改为流内块，放在对话区上方（不再浮层）—— 任何宽度下都不遮挡对话 */
+@media(max-width:1199px){
+  .agent-page.has-drawer{max-width:880px;padding-right:0}
+  .agent-drawer{position:static;width:auto;margin-top:16px;pointer-events:auto}
+  .agent-drawer-body{transform:none;border-right:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-xs);max-height:min(38vh,320px);margin-top:10px}
+  .agent-drawer:not(.is-open) .agent-drawer-body{display:none}
+  .agent-drawer-toggle{position:static;width:auto;height:auto;padding:6px 16px;font-size:12px;letter-spacing:0;writing-mode:horizontal-tb;clip-path:polygon(0 0,96% 0,100% 100%,0 100%)}
+}
 @media(max-width:700px){
+  .agent-extras{grid-template-columns:1fr}
   .agent-extra{grid-template-columns:1fr}
   .agent-extra-label{line-height:1.4}
   .agent-bubble{max-width:88%}
-  .agent-stream{max-height:48vh}
   .agent-input-row{flex-direction:column;align-items:stretch}
   .agent-send{width:100%;flex:0 0 auto}
+}
+/* ≤640px 时 page-wrap 内边距变为 30/60，可用高度相应多出 36px */
+@media(max-width:640px){
+  .agent-page{height:calc(100vh - 166px);height:calc(100dvh - 166px)}
 }
 </style>

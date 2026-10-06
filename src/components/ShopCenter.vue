@@ -1,5 +1,7 @@
 <script setup lang="ts">
-// 积分商城（学生端）：商品兑换 + 我的兑换记录（页内 Tab）
+// 积分商城（学生端）：商品兑换 + 我的兑换记录 + 积分明细（页内 Tab）
+// 注：「积分明细」为占位 Tab —— 后端已建 credit_logs 流水表并有写入，但**没有查询接口**
+//（错误码 50002 标注「预留（无流水查询接口）」），故本期不做假数据，等后端开放后再接入。
 // 契约：GET /shop/goods/list（公开）、POST /shop/goods/:id/redeem（需登录 + 已绑 QQ）、GET /shop/orders（需登录）
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -11,7 +13,7 @@ import { resolveImageUrl } from '../utils/image'
 const emit = defineEmits<{ 'open-settings': [] }>()
 const store = useAppStore()
 
-const tab = ref<'goods' | 'orders'>('goods')
+const tab = ref<'goods' | 'orders' | 'credits'>('goods')
 
 // —— 我的积分 / QQ 绑定前置校验 ——
 // 后端兑换前置要求：必须已绑定 QQ（未绑 → 11005）；这里先用 /user/me 的 qq 字段预判，避免用户白填
@@ -261,6 +263,18 @@ onMounted(loadGoods)
           />
         </div>
         <p class="shop-orders-tip">订单为快照记录，商品改名或下架不影响历史订单。领取奖励请联系管理员。</p>
+      </el-tab-pane>
+
+      <!-- 积分明细：占位（后端 credit_logs 表已就绪但无查询接口），不做任何本地假数据 -->
+      <el-tab-pane label="积分明细" name="credits">
+        <el-alert
+          type="info"
+          show-icon
+          :closable="false"
+          title="积分明细等待后端接口"
+          description="后端已建 credit_logs 积分流水表（变动金额、变动前后积分、类型、说明、时间）并正常写入，但尚未开放查询接口，因此这里暂不展示数据；接口就绪后会直接列出每一笔积分变动。当前积分可在顶栏「我的积分」查看。"
+        />
+        <p class="shop-orders-tip">在此之前，每次积分变动都会同步发送一条类型为「积分变动」的站内通知，可在顶栏铃铛中查看最近的变动金额与余额。</p>
       </el-tab-pane>
     </el-tabs>
   </section>
