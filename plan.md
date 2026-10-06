@@ -191,15 +191,14 @@
 - [ ] 连接 Vercel 仓库，配置构建、输出目录与环境变量（`VITE_IMAGE_BASE_URL`）
 - [ ] 部署预览并验证登录、RBAC 与单页路由
 
-### 阶段二十二：积分明细（阻塞于后端接口，暂不做假数据）
+### 阶段二十二：积分变动记录（已对接后端接口）✅
 
-> **阻塞原因**（2026-10-07 核实）：后端 `credit_logs` 表与写入均已就绪（认领发分 `creditLogTypeClaimReward=1`、管理员加减分 `ChangeUserCreditRequest`、商城兑换 `creditLogTypeShopRedeem=4` 都会落流水），但**没有任何查询接口** —— `common_response_code.md` 的 `50002 CodeCreditLogNotFound` 明确标注「预留（无流水查询接口）」，`initialization/router.go` 中 credit 相关只有 `POST /admin/add-credit`，DAO 也只有写入。
-> **当前前端处理**：`/app/shop` 新增「积分明细」Tab，**只做占位说明，不展示任何本地假数据**；替代查看途径是顶栏铃铛里的 `type=5 积分变动` 通知（通知列表项不返回 `content`，逐条查详情会顺带标记已读，故未被用于拼装该页）。
+> 后端已提供 **`GET /user/credit-logs`**（私有，只返回当前登录用户自己的流水）。参数全部可选：`type` 0-4 / `page`（默认 1）/ `page_size`（默认 10、**上限 100**）；**不筛就省略，不要传空串**。返回 `{ total, page, page_size, logs }`（`logs` 空数据为 `[]`），条目含 `change_amount` / `before_amount` / `after_amount` / `type` / **`type_label`（后端已给中文）** / `description` / `created_at`；**不返回** `operator_id` / `related_id`；**排序 `created_at` 降序由后端保证**。
 
-- [ ] 后端补 `GET /user/credit/logs`（建议 `limit` / `offset` 分页、`created_at DESC`，返回 `id` / `change_amount` / `before_amount` / `after_amount` / `type` / `description` / `related_id` / `created_at`）
-- [ ] 前端 `src/api/` 新增积分流水接口封装与 DTO（字段对齐 `credit_logs`）
-- [ ] 积分明细 Tab 由占位改为真实列表：时间 / 类型 / 变动金额（+绿 −红）/ 变动后余额 / 说明
-- [ ] 类型中文映射：0 拾金不昧奖励 / 1 认领成功奖励 / 2 违规扣分 / 3 系统调整 / 4 积分兑换
+- [x] 接口层：`api/types.ts` 补 `CreditLogType` / `CreditLogDTO` / `CreditLogListResult` / `ListCreditLogsParams`；`api/user.ts` 补 `listCreditLogs()`（不筛时省略 `type`，绝不传空串）
+- [x] `/app/shop`「积分变动记录」Tab（由原「积分明细」占位改为真实列表）：类型筛选 + 分页（`total` 驱动，`page_size` 取 10/20/50）+ 空态 + 错误分支（`1` 参数异常 / `6` 稍后重试 / `2` 由 `http.ts` 统一跳登录）
+- [x] 展示：`+N` 绿（`--green`）/ `-N` 红（`--danger`）、`type_label` 标签、`description` 说明、`created_at` 格式化到分钟、变动后余额；**不展示** `operator_id` / `related_id`
+- [x] 当前积分余额仍取自 `GET /user/me` 的 `credit`（页面顶部积分卡 + 顶栏徽章）；兑换成功后把列表标记为待刷新
 
 ### 远期规划（不在本轮迭代内）
 
@@ -234,6 +233,7 @@
 | M6.15 | 认领规则与后端对齐（发布者关闭入口 / 认领按钮归属判定 / 服务端刷新）+ 账号管理头像 + 数据总览移除 90 天档 | ✅ 已完成 |
 | M6.16 | 发布页布局调整 + 全站页面边距标准化（`--page-max`）+ 智能助手页面重构（拖拽上传 / 胶囊筛选 / 右侧梯形示例窗） | ✅ 已完成 |
 | M6.17 | 发布页「AI 帮写」一键式临时对话框（草稿接口 `POST /agent/extract` + 打开即自动生成并填入表单 + 醒目「完全帮写」跳转助手） | ✅ 已完成 |
+| M6.18 | 全站 favicon（`public/favicon.png`）+ 商城主页「积分变动记录」对接 `GET /user/credit-logs` | ✅ 已完成 |
 | M7 | 系统管理员数据大屏（极简版）接入 ECharts | ⏳ 待完成 |
 | M8 | 界面美化（设计令牌 + 视觉升级）与移动端适配 | ✅ 已完成（移动端断点此前已就绪，本轮完成美化） |
 | M9 | Vercel 部署上线 | ⏳ 待完成 |

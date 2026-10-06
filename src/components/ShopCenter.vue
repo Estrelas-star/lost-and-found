@@ -8,6 +8,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '../stores/app'
 import { listGoods, listMyOrders, redeemGood } from '../api/shop'
 import type { GoodDTO, OrderDTO } from '../api/shop'
+import { listCreditLogs } from '../api/user'
+import type { CreditLogDTO, CreditLogType } from '../api/types'
+import { ApiError } from '../api/http'
 import { resolveImageUrl } from '../utils/image'
 
 const emit = defineEmits<{ 'open-settings': [] }>()
@@ -111,6 +114,7 @@ async function onRedeem(g: GoodDTO) {
     await loadGoods()          // 库存 / 可兑换状态可能已变
     await store.initSession()  // 刷新顶栏积分与未读通知
     ordersLoaded.value = false // 下次进「我的兑换记录」Tab 时重新拉取
+    logsLoaded.value = false   // 兑换会产生一条 type=4 流水，下次进「积分变动记录」时重新拉取
   } catch (e) {
     ElMessage.error((e as Error).message || '兑换失败，请稍后重试')
   } finally {
@@ -144,8 +148,65 @@ async function loadOrders() {
 function onOrderPage(p: number) { orderPage.value = p; loadOrders() }
 function onOrderPageSize(s: number) { orderPageSize.value = s; orderPage.value = 1; loadOrders() }
 
+// —— 积分变动记录（GET /user/credit-logs，只返回自己的流水）——
+// 后端保证 created_at 降序 → 前端不做本地重排；type 不筛就省略（传空串会被当成 0 参与筛选 → 1）
+const CREDIT_TYPE_OPTIONS: { value: CreditLogType; label: string }[] = [
+  { value: 0, label: '拾金不昧奖励' },
+  { value: 1, label: '认领成功奖励' },
+  { value: 2, label: '违规扣分' },
+  { value: 3, label: '系统调整' },
+  { value: 4, label: '积分兑换' },
+]
+const logs = ref<CreditLogDTO[]>([])
+const logTotal = ref(0)
+const logPage = ref(1)
+const logPageSize = ref(10)   // 后端上限 100
+const logType = ref<CreditLogType | ''>('')   // '' = 全部（请求时省略 type）
+const logLoading = ref(false)
+const logsLoaded = ref(false)
+
+async function loadCreditLogs() {
+  logLoading.value = true
+  try {
+    const res = await listCreditLogs({
+      type: logType.value === '' ? undefined : logType.value,
+      page: logPage.value,
+      page_size: logPageSize.value,
+    })
+    logs.value = res.data?.logs ?? []
+    logTotal.value = res.data?.total ?? 0
+    logsLoaded.value = true
+  } catch (e) {
+    logs.value = []
+    logTotal.value = 0
+    // code 2（未登录/无 token）已由 http.ts 统一清登录态并跳登录页，这里只需处理 1 / 6
+    const code = e instanceof ApiError ? e.code : 0
+    if (code === 1) ElMessage.error('参数异常，请检查筛选条件后重试')
+    else if (code === 6) ElMessage.error('服务器开小差了，请稍后重试')
+    else ElMessage.error((e as Error).message || '积分变动记录加载失败')
+  } finally {
+    logLoading.value = false
+  }
+}
+function onLogPage(p: number) { logPage.value = p; loadCreditLogs() }
+function onLogPageSize(s: number) { logPageSize.value = s; logPage.value = 1; loadCreditLogs() }
+function onLogTypeChange() { logPage.value = 1; loadCreditLogs() }
+
+// 正负显示：+N 绿色 / -N 红色（0 用中性色）
+function amountText(n: number) { return n > 0 ? `+${n}` : String(n) }
+function amountClass(n: number) { return n > 0 ? 'shop-amount-plus' : n < 0 ? 'shop-amount-minus' : 'shop-amount-zero' }
+// created_at 形如 2026-10-07T12:00:00+08:00 → 2026-10-07 12:00（按本地时区展示）
+function fmtLogTime(iso: string) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return String(iso).slice(0, 16).replace('T', ' ')
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 watch(tab, (t) => {
   if (t === 'orders' && !ordersLoaded.value) loadOrders()
+  if (t === 'credits' && !logsLoaded.value) loadCreditLogs()
 })
 
 function shortDate(iso: string) { return (iso || '').slice(0, 10) }
@@ -265,16 +326,46 @@ onMounted(loadGoods)
         <p class="shop-orders-tip">订单为快照记录，商品改名或下架不影响历史订单。领取奖励请联系管理员。</p>
       </el-tab-pane>
 
-      <!-- 积分明细：占位（后端 credit_logs 表已就绪但无查询接口），不做任何本地假数据 -->
-      <el-tab-pane label="积分明细" name="credits">
-        <el-alert
-          type="info"
-          show-icon
-          :closable="false"
-          title="积分明细等待后端接口"
-          description="后端已建 credit_logs 积分流水表（变动金额、变动前后积分、类型、说明、时间）并正常写入，但尚未开放查询接口，因此这里暂不展示数据；接口就绪后会直接列出每一笔积分变动。当前积分可在顶栏「我的积分」查看。"
-        />
-        <p class="shop-orders-tip">在此之前，每次积分变动都会同步发送一条类型为「积分变动」的站内通知，可在顶栏铃铛中查看最近的变动金额与余额。</p>
+      <!-- 积分变动记录：GET /user/credit-logs（后端已保证 created_at 降序，前端不重排） -->
+      <el-tab-pane label="积分变动记录" name="credits">
+        <div class="shop-log-bar">
+          <el-select v-model="logType" placeholder="全部类型" class="shop-log-type" @change="onLogTypeChange">
+            <el-option label="全部类型" value="" />
+            <el-option v-for="opt in CREDIT_TYPE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
+          <span class="shop-log-count">共 {{ logTotal }} 条记录 · 正数为获得、负数为扣减 · 当前积分见上方积分卡</span>
+        </div>
+        <el-table :data="logs" v-loading="logLoading" stripe empty-text="暂无积分变动记录">
+          <el-table-column label="变动" width="110">
+            <template #default="{ row }">
+              <span class="shop-amount" :class="amountClass(row.change_amount)">{{ amountText(row.change_amount) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="类型" width="140">
+            <template #default="{ row }"><el-tag size="small" effect="plain">{{ row.type_label }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="说明" min-width="200">
+            <template #default="{ row }">{{ row.description || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="变动后余额" width="120">
+            <template #default="{ row }">{{ row.after_amount }}</template>
+          </el-table-column>
+          <el-table-column label="时间" width="160">
+            <template #default="{ row }">{{ fmtLogTime(row.created_at) }}</template>
+          </el-table-column>
+        </el-table>
+        <div v-if="logTotal > logPageSize" class="shop-pagination">
+          <el-pagination
+            :current-page="logPage"
+            :page-size="logPageSize"
+            :page-sizes="[10, 20, 50]"
+            :total="logTotal"
+            layout="total, sizes, prev, pager, next"
+            background
+            @current-change="onLogPage"
+            @size-change="onLogPageSize"
+          />
+        </div>
       </el-tab-pane>
     </el-tabs>
   </section>
@@ -317,6 +408,14 @@ onMounted(loadGoods)
 .shop-card-btn :deep(span){font-size:13px}
 .shop-pagination{display:flex;justify-content:center;padding:22px 0 4px}
 .shop-orders-tip{margin:14px 0 0;color:var(--muted);font-size:12px}
+/* 积分变动记录（GET /user/credit-logs） */
+.shop-log-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.shop-log-type{width:180px}
+.shop-log-count{color:var(--muted);font-size:12px}
+.shop-amount{font-weight:700;font-variant-numeric:tabular-nums}
+.shop-amount-plus{color:var(--green)}
+.shop-amount-minus{color:var(--danger)}
+.shop-amount-zero{color:var(--muted)}
 @media(max-width:700px){
   .shop-filter-keyword{width:100%}
   .shop-filter-price :deep(.el-input-number){width:120px}

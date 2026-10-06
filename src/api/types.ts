@@ -78,3 +78,38 @@ export interface PublicUserResponse {
 export interface BatchRequest {
   ids: number[]   // 用户 id 数组
 }
+
+/* ===== 积分流水（GET /user/credit-logs） ===== */
+
+/** 积分流水业务类型：0 拾金不昧奖励 / 1 认领成功奖励 / 2 违规扣分 / 3 系统调整 / 4 积分兑换 */
+export type CreditLogType = 0 | 1 | 2 | 3 | 4
+
+/**
+ * 单条积分流水（后端 model.CreditLogResponse）
+ * 注意：**不返回** operator_id / related_id，前端不展示这两项。
+ */
+export interface CreditLogDTO {
+  id: number
+  change_amount: number    // 正数为增加、负数为减少
+  before_amount: number    // 变动前积分
+  after_amount: number     // 变动后积分
+  type: number
+  type_label: string       // 后端已给出中文标签（如「积分兑换」），前端不再自行映射
+  description?: string     // 变动说明
+  created_at: string
+}
+
+/** GET /user/credit-logs 的 data：logs 空数据为 []（不是 null） */
+export interface CreditLogListResult {
+  total: number
+  page: number
+  page_size: number
+  logs: CreditLogDTO[]
+}
+
+/** GET /user/credit-logs 查询参数（全部可选；**不筛就省略**，不要传空串，否则后端按 0 参与筛选/报 1） */
+export interface ListCreditLogsParams {
+  type?: CreditLogType
+  page?: number
+  page_size?: number       // 默认 10，最大 100
+}

@@ -5,6 +5,8 @@ import type {
   ChangeUserRoleRequest,
   ChangeUserStatusRequest,
   CreateUserRequest,
+  CreditLogListResult,
+  ListCreditLogsParams,
   LoginRequest,
   UpdateUserRequest,
   PublicUserResponse,
@@ -38,6 +40,25 @@ export function updateUser(body: UpdateUserRequest) {
 /** 获取自己的信息: GET /user/me  */
 export function getMe() {
   return request<UserResponse>('/user/me')
+}
+
+/**
+ * 我的积分流水：GET /user/credit-logs（私有，只返回当前登录用户自己的记录）
+ *
+ * · `type` **不筛就省略**（传空串/0 会被后端读成 0 并实际参与筛选，空串还会触发 `1` 参数错误）
+ * · `page` 默认 1；`page_size` 默认 10、**最大 100**（超出 → `1`）
+ * · 排序由后端保证 `created_at` 降序，**前端不要本地重排**
+ * · 返回 `{ total, page, page_size, logs }`；`logs` 空数据为 `[]`（不是 null）
+ * · 错误码：`1` 参数错误 / `2` 未登录或无 token（由 http.ts 统一跳登录）/ `6` 服务端异常
+ * · 当前积分余额不在此接口返回，用 `GET /user/me` 的 `credit`
+ */
+export function listCreditLogs(params: ListCreditLogsParams = {}) {
+  const qs = new URLSearchParams()
+  if (params.type != null) qs.set('type', String(params.type))
+  if (params.page != null) qs.set('page', String(params.page))
+  if (params.page_size != null) qs.set('page_size', String(params.page_size))
+  const query = qs.toString()
+  return request<CreditLogListResult>(`/user/credit-logs${query ? '?' + query : ''}`)
 }
 
 /** 按 id 批量获取用户: POST /user/batch  */
