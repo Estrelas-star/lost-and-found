@@ -113,8 +113,9 @@
 
 .detail-dialog {
   max-height: 85vh;
-  border-radius: 14px;
+  border-radius: var(--radius-xl);
   overflow: hidden;
+  box-shadow: var(--shadow-pop);
 }
 
 .detail-dialog .el-dialog__header {
@@ -135,7 +136,8 @@
   gap: 10px;
   height: 48px;
   padding: 0 18px;
-  border-bottom: 1px solid #edf1ed;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface-soft);
   color: var(--ink);
   font-size: 13px;
   font-weight: 700;
@@ -237,7 +239,7 @@
   margin-bottom: 8px;
   padding: 7px 10px;
   border-radius: 7px;
-  background: #eff8f3;
+  background: var(--green-soft);
   color: var(--green);
   font-size: 11px;
 }
@@ -484,13 +486,13 @@
 }
 
 .upload .remove-image:hover {
-  background: #c66e54;
+  background: var(--danger);
 }
 
 .upload .field-error {
   display: block;
   margin-top: 10px;
-  color: #c66e54;
+  color: var(--danger);
 }
 
 .upload-box {
@@ -524,7 +526,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  color: #52655d;
+  color: var(--ink-2);
   font-size: 12px;
   font-weight: 700;
 }
@@ -547,7 +549,7 @@
 }
 
 .publish-tags-field .field-error {
-  color: #c66e54;
+  color: var(--danger);
   font-size: 11px;
   font-weight: 400;
 }
@@ -601,7 +603,7 @@
   width: 100%;
   padding: 10px 9px;
   text-align: left;
-  color: #c66e54;
+  color: var(--danger);
   font-size: 12px;
   border-radius: 5px;
   margin-top: 4px;
@@ -621,7 +623,7 @@
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1.1fr .9fr;
-  background: #f7f8f5;
+  background: var(--surface-sunken);
 }
 
 .login-intro {
@@ -684,6 +686,11 @@
 
 .login-box {
   width: min(390px,100%);
+  padding: 34px 30px 30px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
 }
 
 .login-box h2 {
@@ -707,7 +714,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  color: #52655d;
+  color: var(--ink-2);
   font-size: 12px;
   font-weight: 700;
 }
@@ -716,17 +723,19 @@
 .login-box select {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 13px 12px;
   outline: 0;
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
   font-size: 12px;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 
 .login-box input:focus,
 .login-box select:focus {
-  border-color: #80bfae;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px #42b9831f;
 }
 
 .login-btn {
@@ -736,7 +745,7 @@
 }
 
 .login-error {
-  color: #c66e54;
+  color: var(--danger);
   font-size: 11px;
   margin: -5px 0 0;
 }
@@ -793,6 +802,39 @@
   --el-color-primary-light-9: #eff8f3!important;
   --el-color-primary-dark-2: #369976!important;
   --el-color-primary-rgb: 66,185,131;
+
+  /* ===== 设计令牌（本轮补齐；取值与原硬编码一致，仅做集中管理，视觉零变化）===== */
+  /* 表面层 */
+  --surface: #fff;
+  --surface-soft: #fbfcfa;
+  --surface-sunken: #f7f8f5;
+  --surface-sidebar: #edf5ee;
+  --surface-accent: #f4f7f4;
+  /* 文字层 */
+  --ink-2: #52655d;
+  --muted-2: #9aa9a1;
+  /* 主色派生（与 --el-color-primary-* 同值，便于纯 CSS 场景引用） */
+  --green-dark: #369976;
+  --green-light: #7bcda4;
+  --green-soft: #eff8f3;
+  --danger: #c66e54;
+  /* 描边 */
+  --line-soft: #edf1ed;
+  --line-card: #e8ede8;
+  /* 圆角节奏 */
+  --radius-sm: 8px;
+  --radius-md: 11px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --radius-pill: 20px;
+  /* 阴影层次 */
+  --shadow-xs: 0 1px 3px #19332f0f;
+  --shadow-card: 0 6px 18px #19332f12;
+  --shadow-hover: 0 12px 26px #19332f1f;
+  --shadow-pop: 0 18px 44px #19332f26;
+  /* 动效 */
+  --dur: .2s;
+  --ease: cubic-bezier(.4,0,.2,1);
 }
 
 * {
@@ -827,7 +869,7 @@ button {
 
 .sidebar {
   width: 246px;
-  background: #edf5ee;
+  background: linear-gradient(180deg, #f4faf6 0%, var(--surface-sidebar) 45%, #e9f2ec 100%);
   border-right: 1px solid #dce7df;
   padding: 27px 16px 20px;
   display: flex;
@@ -850,11 +892,12 @@ button {
   height: 35px;
   display: grid;
   place-items: center;
-  border-radius: 11px;
-  background: var(--green);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #4ec78f 0%, var(--green-dark) 100%);
   color: white;
   font-weight: 800;
   font-size: 20px;
+  box-shadow: 0 6px 14px #42b9833d;
 }
 
 .brand strong {
@@ -922,38 +965,67 @@ button {
 }
 
 .nav-item {
+  position: relative;
   width: 100%;
   padding: 11px 13px;
   display: flex;
   align-items: center;
   gap: 12px;
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   text-align: left;
   font-size: 13px;
   color: #718078;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
 .nav-item span {
   font-size: 18px;
   width: 18px;
   text-align: center;
+  transition: transform var(--dur) var(--ease);
 }
 
-.nav-item:hover,
+/* 激活指示条：从中心展开的绿色竖条，替代原先「只有底色」的激活态 */
+.nav-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  background: var(--green);
+  border-radius: 0 3px 3px 0;
+  transform: translateY(-50%);
+  transition: height var(--dur) var(--ease);
+}
+
+.nav-item:hover {
+  background: #e4f2eb;
+}
+
 .nav-item.active {
   background: #d8eee6;
   color: var(--green);
   font-weight: 700;
 }
 
+.nav-item.active::before {
+  height: 18px;
+}
+
+.nav-item.active span {
+  transform: scale(1.08);
+}
+
 .nav-item b {
   margin-left: auto;
   background: #f0a98d;
   color: #fff;
-  border-radius: 10px;
-  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  padding: 1px 7px;
   font-size: 10px;
+  font-weight: 700;
 }
 
 .sidebar-bottom {
@@ -993,7 +1065,10 @@ button {
   justify-content: space-between;
   align-items: center;
   padding: 0 5.5%;
-  background: #fbfcfa;
+  background: #fbfcfad9;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 1px 12px #19332f0a;
 }
 
 .breadcrumb {
@@ -1199,17 +1274,19 @@ button {
 }
 
 .item-card {
-  background: #fff;
-  border: 1px solid #e8ede8;
-  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line-card);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
-  transition: .2s;
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
 
 .item-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 9px 22px #163b2c10;
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+  border-color: var(--green-light);
 }
 
 .item-visual {
@@ -1229,11 +1306,17 @@ button {
   position: absolute;
   top: 11px;
   left: 12px;
-  background: #ffffffa8;
-  padding: 4px 7px;
-  border-radius: 4px;
+  background: #ffffffd9;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
   font-size: 10px;
   font-style: normal;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: #3f5a51;
+  box-shadow: var(--shadow-xs);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .ink {
@@ -1257,7 +1340,7 @@ button {
 }
 
 .item-info {
-  padding: 14px;
+  padding: 16px;
 }
 
 .item-title {
@@ -1267,7 +1350,7 @@ button {
 }
 
 .item-title h3 {
-  font-size: 14px;
+  font-size: 15px;
   margin: 0;
 }
 
@@ -1297,7 +1380,7 @@ button {
   display: flex;
   justify-content: space-between;
   font-size: 10px;
-  color: #a2aaa5;
+  color: var(--muted-2);
 }
 
 .item-meta span:first-child {
@@ -1317,15 +1400,16 @@ button {
 .table-panel,
 .chart-panel,
 .ranking-panel {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 25px;
+  box-shadow: var(--shadow-xs);
 }
 
 .segmented {
   display: flex;
-  background: #f4f7f4;
+  background: var(--surface-accent);
   border-radius: 8px;
   padding: 4px;
   margin-bottom: 25px;
@@ -1356,7 +1440,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  color: #52655d;
+  color: var(--ink-2);
   font-size: 12px;
   font-weight: 700;
 }
@@ -1472,8 +1556,15 @@ button {
 
 .metric-card {
   padding: 19px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   min-height: 115px;
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card);
 }
 
 .metric-card.mint {
@@ -1687,9 +1778,19 @@ button {
 .empty-state {
   grid-column: 1/-1;
   text-align: center;
-  padding: 60px;
+  padding: 56px 20px;
   color: #96a39c;
   font-size: 13px;
+}
+
+/* 空态统一：加一个浅色符号，与新组件里的 el-empty 观感一致 */
+.empty-state::before {
+  content: '✦';
+  display: block;
+  margin-bottom: 10px;
+  font-size: 24px;
+  line-height: 1;
+  color: #c3d3cb;
 }
 
 @media(max-width:900px) {
@@ -2125,6 +2226,11 @@ button {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform .45s var(--ease);
+}
+
+.item-card.has-cover:hover .item-visual>img {
+  transform: scale(1.05);
 }
 
 .item-card.has-cover .item-visual>span {
@@ -2150,7 +2256,7 @@ button {
 
 /* ===== 发现物品筛选栏（融合：绿色卡片皮肤包住原控件） ===== */
 .filter-form {
-  background: #f4f7f4;
+  background: var(--surface-accent);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 18px 20px 8px;
@@ -2224,7 +2330,7 @@ button {
   padding: 6px 13px;
   border: 1px solid #cfe7dc;
   border-radius: 20px;
-  background: #eff8f3;
+  background: var(--green-soft);
   color: var(--green);
   font-size: 12px;
   font-weight: 700;
@@ -2279,4 +2385,65 @@ button {
     width: 100%;
     text-align: center;
   }
+}
+
+/* =====================================================================
+   全局交互与视觉统一
+   1) Element Plus 主色按钮：hover / active 走深绿。
+      EP 默认 hover 取 --el-color-primary-light-3（偏浅），此前 PublishForm 与
+      UserSettingsDialog 各自抄写了一遍覆盖，现集中到此处，组件内无需再重复。
+   2) 次要按钮 hover 统一走主题绿，避免出现 Element 默认蓝。
+   3) 细滚动条 + 统一过渡时长。
+   ===================================================================== */
+.el-button--primary {
+  --el-button-bg-color: var(--el-color-primary);
+  --el-button-border-color: var(--el-color-primary);
+  --el-button-hover-bg-color: var(--el-color-primary-dark-2);
+  --el-button-hover-border-color: var(--el-color-primary-dark-2);
+  --el-button-active-bg-color: var(--el-color-primary-dark-2);
+  --el-button-active-border-color: var(--el-color-primary-dark-2);
+  --el-button-text-color: #fff;
+  --el-button-hover-text-color: #fff;
+  --el-button-active-text-color: #fff;
+  --el-button-disabled-bg-color: #b9c4bf;
+  --el-button-disabled-border-color: #b9c4bf;
+}
+
+.el-button--primary.is-loading,
+.el-button--primary.is-loading:hover {
+  --el-button-bg-color: var(--el-color-primary);
+  --el-button-border-color: var(--el-color-primary);
+}
+
+/* 说明：默认（次要）按钮的 hover 浅绿底 + 主色文字由 Element Plus 的 .el-button
+   基础变量（--el-button-hover-*）天然提供，无需在此重复声明；
+   .el-button.is-link / .is-text 另有更高特异性的规则保持透明背景，不会被上面的
+   .el-button--primary 覆盖（.el-button--primary.is-link 特异性 0-2-0 > 0-1-0）。 */
+
+.app-shell ::-webkit-scrollbar,
+.main-content::-webkit-scrollbar,
+.agent-stream::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.app-shell ::-webkit-scrollbar-thumb,
+.main-content::-webkit-scrollbar-thumb,
+.agent-stream::-webkit-scrollbar-thumb,
+.el-table__body-wrapper::-webkit-scrollbar-thumb {
+  background: #cbd8d1;
+  border-radius: var(--radius-sm);
+}
+
+.app-shell ::-webkit-scrollbar-thumb:hover,
+.main-content::-webkit-scrollbar-thumb:hover,
+.agent-stream::-webkit-scrollbar-thumb:hover,
+.el-table__body-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #aebfb6;
+}
+
+.app-shell ::-webkit-scrollbar-track,
+.main-content::-webkit-scrollbar-track,
+.agent-stream::-webkit-scrollbar-track {
+  background: transparent;
 }

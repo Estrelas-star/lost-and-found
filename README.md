@@ -80,6 +80,14 @@
 > - **失物招领管理员无预置账号**：由系统管理员登录后在【账号管理】中通过修改角色分配（`role = 1`）；
 > - `sysadmin` 为后端初始化的最高权限账号，前端不可注册同名账号（注册接口校验账号唯一）。
 
+## 界面与视觉规范
+
+- **设计令牌集中在 `src/styles.css` 的 `:root`**：表面层（`--surface-soft/sunken/sidebar/accent`）、文字层（`--ink` / `--ink-2` / `--muted` / `--muted-2`）、主色（`--green` 与 `--green-dark` / `--green-light` / `--green-soft`）、语义色（`--danger`）、描边（`--line` / `--line-soft` / `--line-card`）、圆角节奏（`--radius-sm/md/lg/xl/pill`）、阴影层次（`--shadow-xs/card/hover/pop`）、动效（`--dur` / `--ease`）。**改主题只需改这一处。**
+- **Element Plus 主题**：主色 `--el-color-primary` 覆盖为项目绿 `#42b983`；主色按钮的 hover / active / disabled 及 `link` 变体统一在 `styles.css` 全局声明，组件内**不需要**再逐个覆盖按钮颜色。
+- **样式组织**：全局布局与通用组件样式放 `src/styles.css`；页面 / 组件私有样式写在各 `.vue` 的 `<style scoped>` 内；跨组件共享的视觉（令牌、按钮态、滚动条）一律放全局。
+- **响应式**：全站断点 ≤900px（侧栏 205px、栅格降列）与 ≤640px（侧栏折叠为 62px 图标栏、页面纵向化、表单与卡片单列、表格横向滚动）；新增组件请自带 ≤700px 断点。
+- **约定**：新模块优先复用已有令牌与通用类，避免再次引入硬编码色值与重复的按钮覆盖。
+
 ## 启动项目
 
 环境要求：Node.js 18+，npm 9+。

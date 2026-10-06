@@ -311,4 +311,44 @@
 - 移动端适配、Vercel 部署、图片对象存储独立域名等为后续里程碑。
 - 商城商品无草稿/上架状态（仅软删），管理端列表不含已下架商品，下架不可在前端恢复。
 - 智能助手图片上传后端限制为最多 3 张（前端已硬性拦截），单张走 `POST /upload/image` 的 5MB 上限。
+
+## 7. 视觉与响应式规范
+
+### 7.1 设计令牌（`src/styles.css` 的 `:root`）
+
+所有视觉常量集中在全局 CSS 变量，**改主题只需改这一处**：
+
+| 类别 | 令牌 |
+| --- | --- |
+| 表面层 | `--surface`、`--surface-soft`、`--surface-sunken`、`--surface-sidebar`、`--surface-accent` |
+| 文字层 | `--ink`、`--ink-2`、`--muted`、`--muted-2` |
+| 主色 | `--green`（`#42b983`）与 `--green-dark` / `--green-light` / `--green-soft`；另有 `--mint` / `--yellow` / `--coral` / `--blue` 作为浅色底 |
+| 语义色 | `--danger`（错误 / 删除类文本） |
+| 描边 | `--line`、`--line-soft`、`--line-card` |
+| 圆角节奏 | `--radius-sm`(8) / `--radius-md`(11) / `--radius-lg`(14) / `--radius-xl`(16) / `--radius-pill`(20) |
+| 阴影层次 | `--shadow-xs`（静置） / `--shadow-card`（面板） / `--shadow-hover`（悬停） / `--shadow-pop`（弹窗） |
+| 动效 | `--dur`(`.2s`)、`--ease`(`cubic-bezier(.4,0,.2,1)`) |
+
+### 7.2 Element Plus 主题
+
+- `--el-color-primary` 及其 `light-3/5/7/8/9`、`dark-2`、`rgb` 全部覆盖为项目绿体系。
+- **主色按钮的 hover / active / disabled 与 `link` 变体统一在 `styles.css` 全局声明**：hover 走**深绿**（EP 默认取 light-3 会偏浅），组件内不得重复覆盖按钮颜色。
+- 默认（次要）按钮的 hover 配色由 EP 基础变量天然提供，无需自定义。
+
+### 7.3 视觉层次约定
+
+- 静置卡片 / 面板：`1px` 描边 + `--shadow-xs`（或 `--shadow-card`）+ `--radius-lg`。
+- 悬停反馈：`translateY(-2~4px)` + `--shadow-hover` + 主色系描边，统一使用 `--dur` / `--ease` 过渡。
+- 弹窗：`--radius-xl` + `--shadow-pop`；标题栏用 `--surface-soft` 做浅色分层。
+- 空态统一使用 `el-empty`；列表型占位用 `.empty-state`（含浅色符号前缀）。
+
+### 7.4 响应式断点
+
+| 断点 | 规则 |
+| --- | --- |
+| `≤900px` | 侧栏 246→205px；物品栅格 3→2 列；指标卡 2 列；数据大屏栅格单列 |
+| `≤700px` | 各页面工具栏换行、表格容器横向滚动（`audit` / `manage` / 筛选栏 / 新组件） |
+| `≤640px` | 侧栏折叠为 **62px 图标栏**（隐藏品牌文案、导航分组标题、未读角标等）；顶栏内边距收紧、只留头像；`page-wrap` 收紧；页头（welcome / section-head）改竖排；物品栅格与表单改单列；卡片与表格紧凑化；弹窗宽度自适应 |
+
+> 新增组件必须自带 `≤700px` 断点；跨组件的视觉改动一律放 `styles.css` 全局，避免出现多处重复定义导致漂移。
 - 智能助手依赖后端 LLM（单次约 2~8 秒）与 `openai.agent_enabled` 开关，未开启时前端降级为提示态。
