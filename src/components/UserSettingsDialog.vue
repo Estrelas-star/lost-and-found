@@ -169,4 +169,22 @@ const dialogVisible = computed({
 .us-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .us-avatar-btn { display: inline-flex; align-items: center; padding: 9px 14px; border: 1px dashed #c8d7cd; border-radius: 8px; color: var(--green); font-size: 13px; cursor: pointer; }
 .us-avatar-btn input { display: none; }
+/* 主题绿色：确认绑定 / 保存资料 按钮（含 hover 深绿，不回蓝） */
+.us-section :deep(.el-button--primary) {
+  --el-button-bg-color: var(--el-color-primary);
+  --el-button-border-color: var(--el-color-primary);
+  --el-button-hover-bg-color: var(--el-color-primary-dark-2);
+  --el-button-hover-border-color: var(--el-color-primary-dark-2);
+  --el-button-active-bg-color: var(--el-color-primary-dark-2);
+  --el-button-active-border-color: var(--el-color-primary-dark-2);
+  --el-button-text-color: #fff;
+  --el-button-hover-text-color: #fff;
+  --el-button-active-text-color: #fff;
+}
+.us-section :deep(.el-button--primary.is-loading) {
+  --el-button-bg-color: var(--el-color-primary);
+  --el-button-border-color: var(--el-color-primary);
+}
+/* 发送验证码（次要按钮）hover 文字保持绿色主题 */
+.us-section :deep(.el-button:hover) { color: var(--el-color-primary); }
 </style>

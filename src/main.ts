@@ -3,8 +3,8 @@ import { createPinia } from 'pinia' //从 pinia 引入了 createPinia 函数。P
 import ElementPlus from 'element-plus' //引入了 ElementPlus，这是一个基于 Vue 3 的 UI 组件库（类似 Ant Design 或 Vuetify）。
 import AppRoot from './AppRoot.vue' //引入了应用的最外层（根）组件，通常命名为 App.vue 或这里的 AppRoot.vue。
 import router from './router' //引入了路由实例（通常由 Vue Router 创建并导出）。
-import './styles.css'
-import 'element-plus/dist/index.css' //第一行引入了项目自定义的全局样式，第二行引入了 ElementPlus UI 组件库的默认样式。
+import 'element-plus/dist/index.css' //第一行引入了 ElementPlus UI 组件库的默认样式。
+import './styles.css' //然后引入项目自定义的全局样式（必须放在 element-plus 之后，才能覆盖其默认主题色变量）
 
 const app = createApp(AppRoot) //使用之前引入的根组件 AppRoot 创建了一个 Vue 应用实例，并将其存储在 app 变量中。
 app.use(createPinia()) //在应用中注册 Pinia 状态管理插件。createPinia() 会创建一个新的 Pinia 实例。

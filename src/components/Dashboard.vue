@@ -373,9 +373,24 @@ function pct(v: number) {
 .section-intro p { margin: 0; color: #75817d; font-size: 13px; }
 
 .dash-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+/* 时间范围选择：选中态与 hover 统一主题绿色（不落回 Element 默认蓝） */
+.dash-toolbar :deep(.el-radio-button__inner) { color: #3c5148; }
+.dash-toolbar :deep(.el-radio-button__inner:hover) { color: var(--el-color-primary); }
+.dash-toolbar :deep(.el-radio-button.is-active .el-radio-button__inner) {
+  background-color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+  box-shadow: -1px 0 0 0 var(--el-color-primary);
+  color: #fff;
+}
+.dash-toolbar :deep(.el-radio-button.is-active .el-radio-button__inner:hover) {
+  background-color: var(--el-color-primary-dark-2);
+  border-color: var(--el-color-primary-dark-2);
+  box-shadow: -1px 0 0 0 var(--el-color-primary-dark-2);
+  color: #fff;
+}
 .refresh-btn {
   padding: 6px 14px; border-radius: 7px; background: #fff; border: 1px solid #d4e2da;
-  color: #0e7c6b; font-size: 12px; font-weight: 600;
+  color: #42b983; font-size: 12px; font-weight: 600;
 }
 .refresh-btn:hover:not(:disabled) { background: #eef7f2; }
 .refresh-btn:disabled { opacity: 0.6; cursor: default; }
@@ -405,7 +420,7 @@ function pct(v: number) {
 .trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
 .trend-bars { display: flex; align-items: flex-end; gap: 2px; height: 140px; width: 100%; justify-content: center; }
 .trend-bars .bar { width: 46%; max-width: 9px; border-radius: 3px 3px 0 0; min-height: 2px; }
-.trend-bars .pub { background: #0e7c6b; }
+.trend-bars .pub { background: #42b983; }
 .trend-bars .ret { background: #f0a98d; }
 .trend-x { font-size: 11px; color: #6f7b75; margin-top: 5px; font-weight: 500; white-space: nowrap; }
 
@@ -415,13 +430,13 @@ function pct(v: number) {
 .dist-top strong { color: #19332f; }
 .dist-top span { color: #9aa9a1; }
 .dist-track { display: block; height: 8px; background: #eef3ef; border-radius: 4px; overflow: hidden; }
-.dist-track b { display: block; height: 100%; background: #0e7c6b; border-radius: 4px; }
+.dist-track b { display: block; height: 100%; background: #42b983; border-radius: 4px; }
 
 /* 排名 */
 .rank-list { display: flex; flex-direction: column; gap: 12px; }
 .rank-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
 .rank-row.unknown { color: #9aa9a1; }
-.rank-no { width: 18px; text-align: center; color: #0e7c6b; font-weight: 700; }
+.rank-no { width: 18px; text-align: center; color: #42b983; font-weight: 700; }
 .rank-row strong { flex-shrink: 0; width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rank-track { flex: 1; height: 8px; background: #eef3ef; border-radius: 4px; overflow: hidden; }
 .rank-track b { display: block; height: 100%; background: #f8e9ac; border-radius: 4px; }
@@ -440,15 +455,15 @@ function pct(v: number) {
 .funnel-row { display: flex; align-items: center; gap: 10px; font-size: 12px; flex-wrap: wrap; }
 .funnel-name { width: 70px; flex-shrink: 0; color: #19332f; }
 .funnel-track { flex: 1; height: 14px; background: #eef3ef; border-radius: 7px; overflow: hidden; min-width: 40px; }
-.funnel-track b { display: block; height: 100%; background: linear-gradient(90deg, #0e7c6b, #3aa68f); border-radius: 7px; }
+.funnel-track b { display: block; height: 100%; background: linear-gradient(90deg, #42b983, #7bcda4); border-radius: 7px; }
 .funnel-row em { font-style: normal; color: #75817d; width: 44px; text-align: right; }
-.funnel-row small { color: #0e7c6b; font-size: 11px; }
+.funnel-row small { color: #42b983; font-size: 11px; }
 
 /* 时长 */
 .duration { display: flex; gap: 16px; }
 .duration-item { flex: 1; background: #f3f8f5; border-radius: 10px; padding: 16px; text-align: center; }
 .duration-item small { display: block; color: #9aa9a1; font-size: 11px; margin-bottom: 6px; }
-.duration-item strong { display: block; font-size: 22px; color: #0e7c6b; }
+.duration-item strong { display: block; font-size: 22px; color: #42b983; }
 .duration-item span { display: block; color: #9aa9a1; font-size: 11px; margin-top: 6px; }
 
 /* 物品清单 */

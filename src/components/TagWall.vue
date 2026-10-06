@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 
 const props = defineProps<{
@@ -81,9 +81,9 @@ function clearAll() {
   cursor: pointer;
   box-sizing: border-box;
 }
-.tw-trigger:hover { border-color: #0e7c6b; }
+.tw-trigger:hover { border-color: #42b983; }
 .tw-ph { color: #a8abb2; }
-.tw-sel { color: #0e7c6b; font-weight: 500; }
+.tw-sel { color: #42b983; font-weight: 500; }
 .tw-arrow { color: #909399; font-size: 12px; }
 
 .tw-backdrop {
@@ -119,7 +119,7 @@ function clearAll() {
 .tw-clear {
   border: none;
   background: transparent;
-  color: #0e7c6b;
+  color: #42b983;
   font-size: 13px;
   cursor: pointer;
   margin-right: 6px;
@@ -150,10 +150,10 @@ function clearAll() {
   transition: all 0.15s ease;
   text-align: center;
 }
-.tw-chip:hover { border-color: #0e7c6b; }
+.tw-chip:hover { border-color: #42b983; }
 .tw-chip.active {
-  background: #0e7c6b;
-  border-color: #0e7c6b;
+  background: #42b983;
+  border-color: #42b983;
   color: #fff;
   font-weight: 500;
 }

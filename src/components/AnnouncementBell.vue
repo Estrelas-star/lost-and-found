@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 // 顶栏「公告栏」：与「通知」并列的公告入口
 // 定位：首页提示条（notice-strip）只是“看一眼”的提醒——同学点 × 后不再出现在主页，
 //       但公告本身不会丢，随时可在这里回看全部历史公告。
@@ -113,14 +113,14 @@ async function onItemClick(item: AnnouncementItem) {
 
 <style scoped>
 .ann-wrap { position: relative; display: inline-flex; }
-.ann-bell { position: relative; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line, #e3e8e4); background: #f4faf7; color: var(--green, #0e7c6b); display: grid; place-items: center; cursor: pointer; transition: all .2s; }
+.ann-bell { position: relative; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line, #e3e8e4); background: #f4faf7; color: var(--green, #42b983); display: grid; place-items: center; cursor: pointer; transition: all .2s; }
 .ann-bell:hover, .ann-bell.active { background: #e7f5ef; border-color: #cfe3da; }
 .ann-badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e0a13c; color: #fff; font-size: 11px; font-style: normal; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px #fff; }
 .ann-mask { position: fixed; inset: 0; z-index: 40; }
-.ann-panel { position: absolute; top: 46px; right: 0; width: 360px; max-height: 70vh; background: #fff; border: 1px solid #e3e8e4; border-radius: 14px; box-shadow: 0 18px 40px rgba(14,124,107,.18); display: flex; flex-direction: column; overflow: hidden; z-index: 50; }
+.ann-panel { position: absolute; top: 46px; right: 0; width: 360px; max-height: 70vh; background: #fff; border: 1px solid #e3e8e4; border-radius: 14px; box-shadow: 0 18px 40px rgba(66,185,131,.18); display: flex; flex-direction: column; overflow: hidden; z-index: 50; }
 .ann-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #eef1ee; }
 .ann-head-actions { display: flex; align-items: center; gap: 10px; }
-.ann-link { background: none; border: none; color: var(--green, #0e7c6b); font-size: 12px; cursor: pointer; }
+.ann-link { background: none; border: none; color: var(--green, #42b983); font-size: 12px; cursor: pointer; }
 .ann-close { background: none; border: none; font-size: 18px; color: #9aa6a1; cursor: pointer; line-height: 1; }
 .ann-list { overflow-y: auto; padding: 6px; }
 .ann-empty { padding: 30px; text-align: center; color: #9aa6a1; font-size: 13px; }
@@ -130,7 +130,7 @@ async function onItemClick(item: AnnouncementItem) {
 .ann-dot { width: 8px; height: 8px; border-radius: 50%; background: #e0a13c; margin-top: 5px; flex: 0 0 auto; }
 .ann-item-main { flex: 1; min-width: 0; }
 .ann-item-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; flex-wrap: wrap; }
-.ann-tag { font-size: 11px; color: var(--green, #0e7c6b); background: #e7f5ef; padding: 1px 7px; border-radius: 6px; }
+.ann-tag { font-size: 11px; color: var(--green, #42b983); background: #e7f5ef; padding: 1px 7px; border-radius: 6px; }
 .ann-top-flag { font-size: 11px; color: #b07d2b; background: #fdf3e0; padding: 1px 7px; border-radius: 6px; }
 .ann-time { font-size: 11px; color: #9aa6a1; }
 .ann-title { font-size: 13px; color: #2f3a36; line-height: 1.5; word-break: break-word; }

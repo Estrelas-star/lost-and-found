@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '../stores/app'
@@ -174,24 +174,24 @@ async function sendBroadcast() {
 
 <style scoped>
 .notif-wrap { position: relative; display: inline-flex; }
-.notif-bell { position: relative; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line, #e3e8e4); background: #f4faf7; color: var(--green, #0e7c6b); display: grid; place-items: center; cursor: pointer; transition: all .2s; }
+.notif-bell { position: relative; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line, #e3e8e4); background: #f4faf7; color: var(--green, #42b983); display: grid; place-items: center; cursor: pointer; transition: all .2s; }
 .notif-bell:hover, .notif-bell.active { background: #e7f5ef; border-color: #cfe3da; }
 .notif-badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e06c75; color: #fff; font-size: 11px; font-style: normal; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px #fff; }
 .notif-mask { position: fixed; inset: 0; z-index: 40; }
-.notif-panel { position: absolute; top: 46px; right: 0; width: 340px; max-height: 70vh; background: #fff; border: 1px solid #e3e8e4; border-radius: 14px; box-shadow: 0 18px 40px rgba(14,124,107,.18); display: flex; flex-direction: column; overflow: hidden; z-index: 50; }
+.notif-panel { position: absolute; top: 46px; right: 0; width: 340px; max-height: 70vh; background: #fff; border: 1px solid #e3e8e4; border-radius: 14px; box-shadow: 0 18px 40px rgba(66,185,131,.18); display: flex; flex-direction: column; overflow: hidden; z-index: 50; }
 .notif-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #eef1ee; }
 .notif-head-actions { display: flex; align-items: center; gap: 10px; }
-.notif-link { background: none; border: none; color: var(--green, #0e7c6b); font-size: 12px; cursor: pointer; }
+.notif-link { background: none; border: none; color: var(--green, #42b983); font-size: 12px; cursor: pointer; }
 .notif-close { background: none; border: none; font-size: 18px; color: #9aa6a1; cursor: pointer; line-height: 1; }
 .notif-list { overflow-y: auto; padding: 6px; }
 .notif-empty { padding: 30px; text-align: center; color: #9aa6a1; font-size: 13px; }
 .notif-item { display: flex; align-items: flex-start; gap: 8px; padding: 10px; border-radius: 10px; cursor: pointer; position: relative; }
 .notif-item:hover { background: #f4faf7; }
 .notif-item.unread { background: #f0f8f4; }
-.notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green, #0e7c6b); margin-top: 5px; flex: 0 0 auto; }
+.notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green, #42b983); margin-top: 5px; flex: 0 0 auto; }
 .notif-item-main { flex: 1; min-width: 0; }
 .notif-item-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
-.notif-tag { font-size: 11px; color: var(--green, #0e7c6b); background: #e7f5ef; padding: 1px 7px; border-radius: 6px; }
+.notif-tag { font-size: 11px; color: var(--green, #42b983); background: #e7f5ef; padding: 1px 7px; border-radius: 6px; }
 .notif-time { font-size: 11px; color: #9aa6a1; }
 .notif-title { font-size: 13px; color: #2f3a36; line-height: 1.5; word-break: break-word; }
 .notif-del { background: none; border: none; color: #c2ccc7; font-size: 16px; cursor: pointer; line-height: 1; opacity: 0; }
@@ -199,7 +199,7 @@ async function sendBroadcast() {
 .notif-detail-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .notif-detail-title { margin: 0 0 10px; font-size: 16px; color: #2f3a36; }
 .notif-detail-content { margin: 0; font-size: 13px; color: #4b5563; line-height: 1.7; white-space: pre-wrap; }
-.notif-related { margin-top: 14px; background: none; border: none; color: var(--green, #0e7c6b); font-size: 13px; cursor: pointer; padding: 0; }
+.notif-related { margin-top: 14px; background: none; border: none; color: var(--green, #42b983); font-size: 13px; cursor: pointer; padding: 0; }
 .notif-bc { display: flex; flex-direction: column; gap: 12px; }
 .notif-bc label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #4b5563; }
 .notif-bc input:not([type="checkbox"]), .notif-bc textarea { border: 1px solid #d8e0db; border-radius: 7px; padding: 9px 11px; outline: 0; font-size: 13px; font-family: inherit; }
