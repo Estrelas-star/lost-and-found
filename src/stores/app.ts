@@ -54,6 +54,7 @@ export interface Item {
   contact?: string
   images?: string[]
   claimedBy?: number      // 后端认领人 user_id（若后端返回）；"我是否认领"优先以此判定，否则回退本地缓存
+  ownerId?: number        // 后端发布者 user_id；用于区分「我发布的」与「他人的」（认领/关闭的后端权限判定）
 }
 
 export interface Claim {
@@ -246,6 +247,7 @@ export const useAppStore = defineStore('app', () => {
       contact: it.contact,
       images: (it.images ?? []).map((img) => img.image_url),
       claimedBy: (it as any).claim_user_id ?? (it as any).claimed_by ?? undefined,
+      ownerId: it.user_id,
     }
   }
 
@@ -319,8 +321,20 @@ export const useAppStore = defineStore('app', () => {
     await cancelClaim(id)
     await fetchItems()   // 重新拉服务端数据，使认领状态以服务端返回的 claim_user_id 为准
   }
-  // 发布者确认认领：/item/:id/confirm（1->2，发放积分）
-  async function confirmMyItem(id: number) { await confirmItem(id) }
+  // 发布者确认认领：/item/:id/confirm（1->2，发放积分；**仅发布者**，他人 20005）
+  // 契约：不发积分给发布者自己 —— 积分归属由后端判定（拾到帖归帖主、丢失帖归认领者）
+  async function confirmMyItem(id: number) {
+    await confirmItem(id)
+    await fetchMyItems()   // 「我的发布」按服务端数据刷新（此前是本地改 status）
+    await fetchItems()
+  }
+  // 发布者关闭（我找回来了，**不发积分**）：/item/:id/close（status 0/1 -> 2；**仅发布者**）
+  // 若关闭前有进行中的认领，后端会通知认领者「认领随关闭结束」
+  async function closeMyItem(id: number) {
+    await closeItemApi(id)
+    await fetchMyItems()
+    await fetchItems()
+  }
   // —— 管理员强制撤回认领：POST /admin/item/:id/reset（role≥1；仅 status=1 可操作，只能 1→0）——
   // 契约：成功或返回 20001/20002/20011 都不能前端改状态，一律以服务端最新数据为准
   async function resetItemClaim(id: number) {
@@ -333,6 +347,12 @@ export const useAppStore = defineStore('app', () => {
   function isClaimedByMe(item: Item): boolean {
     const meId = authUser.value?.id
     return meId != null && item.claimedBy != null && item.claimedBy === meId
+  }
+  // 「是否我发布的」：后端 /item/:id/claim 对发布者返回 30004，前端据此隐藏认领入口；
+  // close / confirm 亦为「仅发布者」（否则 20005）
+  function isMyItem(item: Item): boolean {
+    const meId = authUser.value?.id
+    return meId != null && item.ownerId != null && item.ownerId === meId
   }
   const myClaims = computed(() => remoteItems.value.filter((i) => isClaimedByMe(i)))
 
@@ -443,5 +463,5 @@ export const useAppStore = defineStore('app', () => {
     })
     await fetchComments(comment.itemId)
   }
-  return { role, activeRoute, isAuthenticated, notices, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, fetchItems, submitClaim, cancelMyClaim, confirmMyItem, addComment, fetchComments, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, resetItemClaim, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, fetchAllUnreadIds, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
+  return { role, activeRoute, isAuthenticated, notices, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, fetchItems, submitClaim, cancelMyClaim, confirmMyItem, closeMyItem, addComment, fetchComments, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, resetItemClaim, forceLogout, initSession, isClaimedByMe, isMyItem, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, fetchAllUnreadIds, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
 })

@@ -41,7 +41,6 @@ const funnel = ref<StatsFunnelResponse | null>(null)
 const rangeOptions = [
   { label: '近 7 天', value: 7 },
   { label: '近 30 天', value: 30 },
-  { label: '近 90 天', value: 90 },
 ]
 
 async function loadAll() {

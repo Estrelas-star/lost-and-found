@@ -216,12 +216,11 @@ async function removeMyItem(item: Item) {
 }
 
 
-// 发布者确认认领（status 1->2，发放积分）
+// 发布者确认认领（status 1->2，发放积分；后端仅发布者可调，他人 20005）
+// 不再本地改 status —— store 内已按服务端数据刷新「我的发布」与列表
 async function confirmMyItem(item: Item) {
   try {
     await store.confirmMyItem(item.id)
-    const local = store.myItems.find((i) => i.id === item.id)
-    if (local) local.status = '已关闭'
     flash('已确认认领，积分已发放')
   } catch (e) { ElMessage.error(friendlyMsg(e)) }
 }
@@ -231,6 +230,21 @@ async function cancelMyItem(item: Item) {
     await store.cancelMyClaim(item.id)
     await store.fetchItems()
     flash('已撤销认领')
+  } catch (e) { ElMessage.error(friendlyMsg(e)) }
+}
+// 发布者关闭（我找回来了，**不发积分**）：与「确认认领」并列的另一条关闭路径
+// 后端 POST /item/:id/close（status 0/1 -> 2，仅发布者）；有进行中的认领会通知认领者
+async function closeMyItem(item: Item) {
+  try {
+    await ElMessageBox.confirm(
+      `确定关闭「${item.title}」吗？关闭后该物品将结束展示，且不会给认领者发放积分。如果确实已归还给对方，请改用「确认认领」。`,
+      '关闭物品（不发积分）',
+      { type: 'warning', confirmButtonText: '确定关闭', cancelButtonText: '取消' }
+    )
+  } catch { return }
+  try {
+    await store.closeMyItem(item.id)
+    flash('已关闭该物品，未发放积分')
   } catch (e) { ElMessage.error(friendlyMsg(e)) }
 }
 
@@ -331,7 +345,7 @@ async function cancelMyItem(item: Item) {
 
         <section v-else-if="false" class="page-section narrow"></section>
 
-        <section v-else-if="store.activeRoute === 'posts' || store.activeRoute === 'claims'" class="page-section"><div class="section-intro"><span class="eyebrow">PERSONAL SPACE</span><h1>{{ pageTitle }}</h1><p>追踪你的每一次发布与认领进度。</p></div><div class="table-panel"><div v-if="store.activeRoute === 'posts'" v-for="item in store.myItems" :key="item.id" class="table-row"><div class="mini-visual" :class="item.color">{{ item.icon }}</div><div class="row-main"><strong>{{ item.title }}</strong><small>{{ item.location }} · {{ item.date }}</small></div><span class="status-pill">{{ item.status }}</span><button class="text-btn" @click="openItem(item)">查看详情</button><button class="text-btn" @click="openEdit(item)">编辑</button><template v-if="item.status === '已认领'"><button class="text-btn" @click="confirmMyItem(item)">确认认领</button></template><button class="text-btn" style="color:#e06c75" @click="removeMyItem(item)">删除</button></div><div v-else v-for="claimItem in store.myClaims" :key="claimItem.id" class="table-row"><div class="mini-visual blue">♡</div><div class="row-main"><strong>{{ claimItem.title }}</strong><small>{{ claimItem.location }} · {{ claimItem.date }}</small></div><span class="status-pill">{{ claimItem.status }}</span><button v-if="claimItem.status === '已认领'" class="text-btn" @click="cancelMyItem(claimItem)">撤销认领</button></div><div v-if="(store.activeRoute === 'posts' ? store.myItems : store.myClaims).length === 0" class="empty-state">{{ store.activeRoute === 'posts' ? '你还没有发布任何物品' : '这里还没有记录' }}</div></div></section>
+        <section v-else-if="store.activeRoute === 'posts' || store.activeRoute === 'claims'" class="page-section"><div class="section-intro"><span class="eyebrow">PERSONAL SPACE</span><h1>{{ pageTitle }}</h1><p>追踪你的每一次发布与认领进度。</p></div><div class="table-panel"><div v-if="store.activeRoute === 'posts'" v-for="item in store.myItems" :key="item.id" class="table-row"><div class="mini-visual" :class="item.color">{{ item.icon }}</div><div class="row-main"><strong>{{ item.title }}</strong><small>{{ item.location }} · {{ item.date }}</small></div><span class="status-pill">{{ item.status }}</span><button class="text-btn" @click="openItem(item)">查看详情</button><button class="text-btn" @click="openEdit(item)">编辑</button><template v-if="item.status === '已认领'"><button class="text-btn" @click="confirmMyItem(item)">确认认领</button><button class="text-btn" @click="closeMyItem(item)">关闭（不发积分）</button></template><button class="text-btn" style="color:#e06c75" @click="removeMyItem(item)">删除</button></div><div v-else v-for="claimItem in store.myClaims" :key="claimItem.id" class="table-row"><div class="mini-visual blue">♡</div><div class="row-main"><strong>{{ claimItem.title }}</strong><small>{{ claimItem.location }} · {{ claimItem.date }}</small></div><span class="status-pill">{{ claimItem.status }}</span><button v-if="claimItem.status === '已认领'" class="text-btn" @click="cancelMyItem(claimItem)">撤销认领</button></div><div v-if="(store.activeRoute === 'posts' ? store.myItems : store.myClaims).length === 0" class="empty-state">{{ store.activeRoute === 'posts' ? '你还没有发布任何物品' : '这里还没有记录' }}</div></div></section>
 
 
 <section v-else-if="store.activeRoute === 'dashboard'" class="page-section"><Dashboard /></section>

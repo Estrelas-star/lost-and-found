@@ -12,6 +12,7 @@ import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/app'
 import { batchGetUsers, adminChangeRole, adminChangeStatus, adminAddCredit } from '../api/user'
 import type { PublicUserResponse } from '../api/types'
+import { resolveImageUrl } from '../utils/image'
 
 const store = useAppStore()
 
@@ -179,7 +180,10 @@ onMounted(() => {
 
       <div v-else class="table-panel">
         <div v-for="u in filtered" :key="u.id" class="table-row au-row">
-          <div class="mini-visual mint">{{ (u.nickname || 'U').slice(0, 1) }}</div>
+          <div class="mini-visual mint au-avatar">
+            <img v-if="u.avatar" :src="resolveImageUrl(u.avatar)" :alt="`${u.nickname || '用户'}的头像`" />
+            <span v-else>{{ (u.nickname || 'U').slice(0, 1) }}</span>
+          </div>
           <div class="row-main">
             <strong>{{ u.nickname || '未命名用户' }}</strong>
             <small>
@@ -313,4 +317,7 @@ onMounted(() => {
 .au-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #6b7a72; }
 .au-field > span { font-weight: 600; color: var(--ink); }
 .au-hint { font-size: 12px; color: #a0aaa5; font-style: normal; }
+/* 头像：/user/batch 的公开字段含 avatar，有则展示真实图片，否则回退昵称首字母 */
+.au-avatar { padding: 0; overflow: hidden; }
+.au-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 </style>
