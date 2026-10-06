@@ -27,7 +27,6 @@ const routes: RouteRecordRaw[] = [
   { path: '/app/audit', name: 'audit', component: App, meta: { requiresAuth: true, roles: ['itemAdmin'], page: 'audit' } },
   { path: '/app/manage', name: 'manage', component: App, meta: { requiresAuth: true, roles: ['itemAdmin'], page: 'manage' } },
   { path: '/app/goods', name: 'goods', component: App, meta: { requiresAuth: true, roles: ['itemAdmin'], page: 'goods' } },
-  { path: '/app/dashboard', name: 'dashboard', component: App, meta: { requiresAuth: true, roles: ['systemAdmin'], page: 'dashboard' } },
   { path: '/app/dashboard', name: 'dashboard', component: App, meta: { requiresAuth: true, roles: ['systemAdmin', 'itemAdmin'], page: 'dashboard' } },
   { path: '/app/users', name: 'users', component: App, meta: { requiresAuth: true, roles: ['systemAdmin'], page: 'users' } },
   { path: '/app/notices', name: 'notices', component: App, meta: { requiresAuth: true, roles: ['systemAdmin'], page: 'notices' } },
