@@ -1,3 +1,4 @@
+
 import { computed, ref } from 'vue'
 import { login as apiLogin, logout as apiLogout, getMe, createUser, updateUser, getQQCode, bindQQ as bindQQApi } from '../api/user'
 import {
@@ -14,6 +15,7 @@ import type { CommentDTO } from '../api/comment'
 import {
   getNotifications, getUnreadCount, getNotificationDetail,
   markNotificationsRead as markReadApi, deleteNotifications as deleteApi, adminBroadcast,
+  NOTIFICATION_PAGE_MAX,
 } from '../api/notification'
 import type { NotificationItem, NotificationDetail } from '../api/notification'
 import { getAnnouncements } from '../api/announcement'
@@ -376,29 +378,59 @@ export const useAppStore = defineStore('app', () => {
   // —— 站内通知（Notification）: 真接口 ——
   const notifications = ref<NotificationItem[]>([])
   const unreadCount = ref<number>(0)
+  // 记住最近一次列表查询参数：标记已读 / 删除后按同一分页刷新，避免列表从 20 条缩回默认 10 条
+  let lastNotificationQuery: { limit?: number; offset?: number } = {}
   async function fetchNotifications(params: { limit?: number; offset?: number } = {}) {
+    lastNotificationQuery = params
     try {
       const res = await getNotifications(params)
       notifications.value = res.data ?? []
     } catch { /* 拉取失败不影响 */ }
   }
+  async function refreshNotifications() {
+    try {
+      const res = await getNotifications(lastNotificationQuery)
+      notifications.value = res.data ?? []
+    } catch { /* 忽略 */ }
+  }
   async function fetchUnreadCount() {
     try { const res = await getUnreadCount(); unreadCount.value = res.data ?? 0 } catch { /* 忽略 */ }
   }
+  /**
+   * 拉取「全部未读通知」的 id（每页 100 = 后端 limit 上限，最多 5 页 = 500 条）。
+   * 「全部已读」用它，避免只标记当前可见的那一页（未读总数可能远超一页）。
+   */
+  async function fetchAllUnreadIds(): Promise<number[]> {
+    const ids: number[] = []
+    const limit = NOTIFICATION_PAGE_MAX
+    for (let page = 0; page < 5; page++) {
+      const res = await getNotifications({ is_read: 0, limit, offset: page * limit })
+      const rows = res.data ?? []
+      ids.push(...rows.map((n) => n.id))
+      if (rows.length < limit) break
+    }
+    return ids
+  }
+  /** 批量已读（api 层自动按 200 分批）。失败会抛出，由调用方提示用户 */
   async function markNotificationsRead(ids: number[]) {
     if (!ids.length) return
-    try { await markReadApi(ids); await fetchUnreadCount(); await fetchNotifications() } catch { /* 忽略 */ }
+    await markReadApi(ids)
+    await fetchUnreadCount()
+    await refreshNotifications()
   }
+  /** 批量删除（api 层自动按 200 分批）。失败会抛出，由调用方提示用户 */
   async function removeNotifications(ids: number[]) {
     if (!ids.length) return
-    try { await deleteApi(ids); await fetchNotifications(); await fetchUnreadCount() } catch { /* 忽略 */ }
+    await deleteApi(ids)
+    await refreshNotifications()
+    await fetchUnreadCount()
   }
   // 打开通知详情（GET /notifications/:id 自动已读）并返回完整内容
   async function openNotification(id: number): Promise<NotificationDetail | null> {
     try {
       const res = await getNotificationDetail(id)
       await fetchUnreadCount()
-      await fetchNotifications()
+      await refreshNotifications()
       return res.data
     } catch { return null }
   }
@@ -456,5 +488,5 @@ export const useAppStore = defineStore('app', () => {
     })
     await fetchComments(comment.itemId)
   }
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, fetchAllUnreadIds, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
 })

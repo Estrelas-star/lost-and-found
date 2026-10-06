@@ -20,6 +20,7 @@ import AnnouncementManager from './components/AnnouncementManager.vue'
 import ShopCenter from './components/ShopCenter.vue'
 import ManageGoods from './components/ManageGoods.vue'
 import AgentAssistant from './components/AgentAssistant.vue'
+import HelpCenter from './components/HelpCenter.vue'
 import { getItem } from './api/item'
 import { resolveImageUrl } from './utils/image'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -59,7 +60,7 @@ const profileMenuOpen = ref(false)
 const settingsVisible = ref(false)
 const currentAvatar = computed(() => resolveImageUrl(store.authUser?.avatar))
 const roleLabels = { student: '学生端', itemAdmin: '失物招领管理', systemAdmin: '系统管理' }
-const pageTitle = computed(() => ({ home: '发现物品', assistant: '智能助手', publish: '发布信息', posts: '我的发布', claims: '我的认领', audit: '审核中心', manage: '物品管理', shop: '积分商城', goods: '商品管理', dashboard: '数据总览', users: '账号管理', notices: '公告管理' })[store.activeRoute])
+const pageTitle = computed(() => ({ home: '发现物品', assistant: '智能助手', publish: '发布信息', posts: '我的发布', claims: '我的认领', audit: '审核中心', manage: '物品管理', shop: '积分商城', goods: '商品管理', dashboard: '数据总览', users: '账号管理', notices: '公告管理', help: '帮助中心' })[store.activeRoute])
 const visibleNavItems = computed(() => navItems[store.role].filter((item) => (item.roles as readonly Role[]).includes(store.role)))
 // 分类筛选改用标签墙（selectedCategories），不再需要 categoryOptions
 const locationOptions = computed(() => ['全部', ...store.locations.map((l) => l.name)])
@@ -283,7 +284,7 @@ function submitReject() {
         <p class="nav-caption">{{ roleLabels[store.role] }}</p>
         <button v-for="item in visibleNavItems" :key="item.key" class="nav-item" :class="{ active: store.activeRoute === item.key }" @click="go(item.key)"><span>{{ item.icon }}</span>{{ item.label }}<b v-if="item.key === 'audit' && pendingItems.length">{{ pendingItems.length }}</b></button>
       </nav>
-      <div class="sidebar-bottom"><button class="help-link" @click="flash('帮助中心即将上线')">? <span>帮助与反馈</span></button><div class="version">拾光 v1.0 · 让每件物品回家</div></div>
+      <div class="sidebar-bottom"><button class="help-link" :class="{ active: store.activeRoute === 'help' }" @click="go('help')">? <span>帮助与反馈</span></button><div class="version">拾光 v1.0 · 让每件物品回家</div></div>
     </aside>
 
     <main class="main-content">
@@ -376,6 +377,7 @@ function submitReject() {
         <section v-else-if="store.activeRoute === 'shop'" class="page-section"><ShopCenter @open-settings="settingsVisible = true" /></section>
         <section v-else-if="store.activeRoute === 'goods'" class="page-section"><ManageGoods /></section>
         <section v-else-if="store.activeRoute === 'assistant'" class="page-section"><AgentAssistant @open-item="openItemById" /></section>
+        <section v-else-if="store.activeRoute === 'help'" class="page-section"><HelpCenter /></section>
       </div>
     </main>
     <DetailDialog :item="selectedItem" :visible="detailDialogVisible" @close="closeDetailDialog" @open-item="openItemById" />

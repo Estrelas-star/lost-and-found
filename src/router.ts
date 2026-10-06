@@ -30,6 +30,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/app/dashboard', name: 'dashboard', component: App, meta: { requiresAuth: true, roles: ['systemAdmin', 'itemAdmin'], page: 'dashboard' } },
   { path: '/app/users', name: 'users', component: App, meta: { requiresAuth: true, roles: ['systemAdmin'], page: 'users' } },
   { path: '/app/notices', name: 'notices', component: App, meta: { requiresAuth: true, roles: ['systemAdmin'], page: 'notices' } },
+  { path: '/app/help', name: 'help', component: App, meta: { requiresAuth: true, roles: allRoles, page: 'help' } },
   { path: '/:pathMatch(.*)*', redirect: '/app' }
 ]
 

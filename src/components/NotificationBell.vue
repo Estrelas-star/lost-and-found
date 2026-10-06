@@ -15,6 +15,9 @@ const broadcastVisible = ref(false)
 const unreadCount = computed(() => store.unreadCount)
 const list = computed(() => store.notifications)
 const canBroadcast = computed(() => store.role !== 'student')
+// 后端批量删除会跳过「管理端群发给自己的那条」（user_id = admin_id），前端也不应把它做成可删
+const myId = computed(() => store.authUser?.id ?? 0)
+function isSelfSent(item: NotificationItem) { return item.admin_id !== 0 && item.admin_id === myId.value }
 
 const TYPE_LABELS: Record<number, string> = {
   0: '系统通知', 1: '物品匹配', 2: '认领申请', 3: '认领结果', 4: '评论回复', 5: '积分变动', 6: '商品兑换',
@@ -45,18 +48,29 @@ async function onItemClick(item: NotificationItem) {
 }
 
 async function markAllRead() {
-  const ids = list.value.filter((n) => !n.is_read).map((n) => n.id)
-  if (!ids.length) { ElMessage.info('没有未读通知'); return }
-  await store.markNotificationsRead(ids)
-  ElMessage.success('已将全部通知标为已读')
+  try {
+    // 列表只显示最近 20 条，未读总数可能更多 —— 先分页取出「全部未读」再标记
+    // （api 层已按后端限制 200/次自动分批）
+    const ids = await store.fetchAllUnreadIds()
+    if (!ids.length) { ElMessage.info('没有未读通知'); return }
+    await store.markNotificationsRead(ids)
+    ElMessage.success(`已将 ${ids.length} 条通知标为已读`)
+  } catch (e) {
+    ElMessage.error((e as Error).message || '标记已读失败，请稍后重试')
+  }
 }
 
 async function deleteItem(item: NotificationItem) {
+  if (isSelfSent(item)) { ElMessage.info('这是你自己群发的通知，系统不支持删除'); return }
   try {
     await ElMessageBox.confirm('确定删除这条通知吗？', '删除通知', { type: 'warning' })
   } catch { return }
-  await store.removeNotifications([item.id])
-  ElMessage.success('已删除')
+  try {
+    await store.removeNotifications([item.id])
+    ElMessage.success('已删除')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '删除失败，请稍后重试')
+  }
 }
 
 function openRelated() {
@@ -76,6 +90,13 @@ const bcSending = ref(false)
 async function sendBroadcast() {
   if (!bcTitle.value.trim()) { ElMessage.warning('请填写通知标题'); return }
   if (!bcContent.value.trim()) { ElMessage.warning('请填写通知内容'); return }
+  // 指定用户时后端要求：user_ids 非空、单次 ≤1000（空 / 全无效 / 超 1000 一律 → 1）
+  let targetIds: number[] = []
+  if (!bcSendAll.value) {
+    targetIds = bcUserIds.value.split(/[,\s]+/).map((s) => Number(s.trim())).filter((n) => !isNaN(n) && n > 0)
+    if (!targetIds.length) { ElMessage.warning('请填写至少一个用户 ID，或勾选「发送给所有用户」'); return }
+    if (targetIds.length > 1000) { ElMessage.warning('单次最多指定 1000 个用户，请分批发送'); return }
+  }
   bcSending.value = true
   try {
     const payload: BroadcastPayload = {
@@ -84,10 +105,11 @@ async function sendBroadcast() {
       content: bcContent.value.trim(),
       send_to_all: bcSendAll.value,
     }
-    if (!bcSendAll.value) {
-      const ids = bcUserIds.value.split(/[,\s]+/).map((s) => Number(s.trim())).filter((n) => !isNaN(n))
-      payload.user_ids = ids
-    }
+    // 已核对后端 NotificationService.Send 校验：
+    //   send_to_all=true  → user_ids 必须为空/不传（同传 → 1）
+    //   send_to_all=false → 必须给出非空 user_ids（空/全无效 → 1）
+    // 因此这里只在「指定用户」时补 user_ids，其余场合不带该字段
+    if (!bcSendAll.value) payload.user_ids = targetIds
     await store.broadcastNotification(payload)
     ElMessage.success('通知已发送')
     broadcastVisible.value = false
@@ -133,7 +155,8 @@ async function sendBroadcast() {
             </div>
             <div class="notif-title">{{ item.title }}</div>
           </div>
-          <button class="notif-del" @click.stop="deleteItem(item)" title="删除">×</button>
+          <button v-if="!isSelfSent(item)" class="notif-del" @click.stop="deleteItem(item)" title="删除">×</button>
+          <span v-else class="notif-self-mark" title="这是你自己群发的通知，系统不支持删除">已发</span>
         </div>
       </div>
     </div>
@@ -196,6 +219,8 @@ async function sendBroadcast() {
 .notif-title { font-size: 13px; color: #2f3a36; line-height: 1.5; word-break: break-word; }
 .notif-del { background: none; border: none; color: #c2ccc7; font-size: 16px; cursor: pointer; line-height: 1; opacity: 0; }
 .notif-item:hover .notif-del { opacity: 1; }
+/* 「你自己群发的通知」不可删除：用只读标记替代删除按钮，避免点击后假成功 */
+.notif-self-mark { flex: 0 0 auto; align-self: center; font-size: 10px; color: #a8b5af; background: #f4f7f5; border: 1px solid #e3eae6; border-radius: 6px; padding: 1px 6px; }
 .notif-detail-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .notif-detail-title { margin: 0 0 10px; font-size: 16px; color: #2f3a36; }
 .notif-detail-content { margin: 0; font-size: 13px; color: #4b5563; line-height: 1.7; white-space: pre-wrap; }
