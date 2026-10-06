@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/app'
 import { uploadImage } from '../api/upload'
-import { resolveImageUrl } from '../utils/image'
+import ImageDropzone from './ImageDropzone.vue'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -72,12 +72,11 @@ async function saveProfile() {
 
 // —— 更换头像 ——
 const avatarUploading = ref(false)
-const avatarUrl = computed(() => resolveImageUrl((store as any).authUser?.avatar))
-async function onAvatarPick(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file || !file.type.startsWith('image/')) return
+// 传相对 URL 给拖放区，由它内部统一 resolveImageUrl（已是绝对地址时原样返回）
+const avatarPreview = computed(() => (store.authUser as { avatar?: string } | null)?.avatar || '')
+async function onAvatarFiles(files: File[]) {
+  const file = files[0]
+  if (!file) return
   avatarUploading.value = true
   try {
     const url = await uploadImage(file)
@@ -140,16 +139,7 @@ const dialogVisible = computed({
 
     <div class="us-section">
       <h3>更换头像</h3>
-      <div class="us-avatar-row">
-        <div class="us-avatar">
-          <img v-if="avatarUrl" :src="avatarUrl" alt="头像" />
-          <span v-else>{{ me.name.slice(0, 1) }}</span>
-        </div>
-        <label class="us-avatar-btn">
-          <input type="file" accept="image/*" :disabled="avatarUploading" @change="onAvatarPick" />
-          {{ avatarUploading ? '上传中…' : '上传 / 更换头像' }}
-        </label>
-      </div>
+      <ImageDropzone mode="single" :previews="avatarPreview ? [avatarPreview] : []" :loading="avatarUploading" :removable="false" label="拖拽头像图片到此处，或点击选择" hint="支持 JPG / PNG / WEBP，单张 ≤5MB，上传成功后立即生效" @files="onAvatarFiles" />
     </div>
   </el-dialog>
 </template>
@@ -164,11 +154,6 @@ const dialogVisible = computed({
 .us-form { display: flex; flex-direction: column; gap: 12px; max-width: 320px; }
 .us-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #4b5563; }
 .us-form input { border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px; outline: 0; font-size: 13px; }
-.us-avatar-row { display: flex; align-items: center; gap: 16px; }
-.us-avatar { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: #d9eee6; color: var(--green); font-size: 24px; font-weight: 700; }
-.us-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.us-avatar-btn { display: inline-flex; align-items: center; padding: 9px 14px; border: 1px dashed #c8d7cd; border-radius: 8px; color: var(--green); font-size: 13px; cursor: pointer; }
-.us-avatar-btn input { display: none; }
 /* 按钮主题绿（primary hover 深绿 / 次要按钮 hover 变绿）统一由 src/styles.css 的全局规则提供，
    此处不再重复覆盖，避免多处定义漂移 */
 </style>

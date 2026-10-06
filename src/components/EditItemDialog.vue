@@ -3,8 +3,8 @@ import { ref, computed, watch } from 'vue'
 import { useAppStore, type Item } from '../stores/app'
 import { setItemImages } from '../api/item'
 import { uploadImage } from '../api/upload'
-import { resolveImageUrl } from '../utils/image'
 import { ElMessage } from 'element-plus'
+import ImageDropzone from './ImageDropzone.vue'
 const descRef = ref<any>(null)
 const descDragOver = ref(false)
 function insertDescAtCursor(snippet: string) {
@@ -87,12 +87,11 @@ watch(
   { immediate: true }
 )
 
-function onPickImage(e: Event) {
-  const input = e.target as HTMLInputElement
-  const picked = Array.from(input.files || []).filter((f) => f.type.startsWith('image/'))
-  pendingFiles.value.push(...picked)
-  input.value = ''
+// ImageDropzone 已完成「类型 / 大小 / 张数」预检；编辑场景沿用既有流程：先攒成待上传队列，点「保存」时统一上传
+function onPickImageFiles(files: File[]) {
+  pendingFiles.value.push(...files)
 }
+const pendingNote = computed(() => (pendingFiles.value.length ? `已选 ${pendingFiles.value.length} 张新图片，点「保存」后一并上传` : ''))
 function removeExistingImage(idx: number) {
   imageUrls.value.splice(idx, 1)
 }
@@ -152,19 +151,18 @@ async function onSave() {
         <span>详细地点信息</span>
         <el-input v-model="locDetail" placeholder="如：图书馆三楼靠窗自习区" />
       </label>
-      <label class="ef-field">
+      <!-- 用 div 而非 label：label 内不允许块级元素（描述拖放区是 div） -->
+      <div class="ef-field">
         <span>描述</span>
         <div class="desc-dropzone" :class="{ 'drag-over': descDragOver }" @dragover.prevent="descDragOver = true" @dragleave.prevent="descDragOver = false" @drop="onDescDrop">
           <el-input ref="descRef" v-model="description" type="textarea" :rows="4" placeholder="支持 Markdown：标题、**加粗**、列表，也可把图片直接拖进此框" />
         </div>
-      </label>
-      <label class="ef-field">
+      </div>
+      <!-- 用 div 而非 label：ImageDropzone 内部已有 file input，外层再包 label 会让「移除」点击也触发选文件 -->
+      <div class="ef-field">
         <span>物品图片</span>
-        <div class="ef-imgs">
-          <div v-for="(img, idx) in imageUrls" :key="img" class="ef-img"><img :src="resolveImageUrl(img)" alt="图片" /><button type="button" class="ef-img-del" @click="removeExistingImage(idx)">×</button></div>
-          <label class="ef-upload">＋<input type="file" accept="image/*" multiple @change="onPickImage" /></label>
-        </div>
-      </label>
+        <ImageDropzone mode="multi" :previews="imageUrls" :note="pendingNote" @files="onPickImageFiles" @remove="removeExistingImage" />
+      </div>
     </div>
     <template #footer>
       <el-button @click="emit('close')">取消</el-button>
@@ -177,12 +175,6 @@ async function onSave() {
 .edit-form { display: flex; flex-direction: column; gap: 14px; }
 .ef-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #4b5563; }
 .ef-field .req { color: #e06c75; font-style: normal; }
-.ef-imgs { display: flex; flex-wrap: wrap; gap: 10px; }
-.ef-img { position: relative; width: 84px; height: 84px; border-radius: 8px; overflow: hidden; background: #edf3ef; }
-.ef-img img { width: 100%; height: 100%; object-fit: cover; }
-.ef-img-del { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border: 0; border-radius: 50%; background: rgba(25,51,47,.75); color: #fff; font-size: 13px; line-height: 1; }
-.ef-upload { display: flex; align-items: center; justify-content: center; width: 84px; height: 84px; border: 1px dashed #c8d7cd; border-radius: 8px; color: var(--green); cursor: pointer; font-size: 22px; }
-.ef-upload input { display: none; }
 .desc-dropzone{padding:4px;border-radius:8px;transition:outline .15s}
 .desc-dropzone.drag-over{outline:2px dashed var(--green);background:#f0f8f3}
 </style>

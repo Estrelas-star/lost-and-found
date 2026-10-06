@@ -12,6 +12,7 @@ import { createGood, deleteGood, listGoods, updateGood } from '../api/shop'
 import type { GoodDTO } from '../api/shop'
 import { uploadImage } from '../api/upload'
 import { resolveImageUrl } from '../utils/image'
+import ImageDropzone from './ImageDropzone.vue'
 
 const list = ref<GoodDTO[]>([])
 const total = ref(0)
@@ -77,10 +78,9 @@ function openEdit(g: GoodDTO) {
 }
 
 // 图片上传：复用 POST /upload/image（返回相对 URL），与物品发布的图片链路一致
-async function onPickImage(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
+// ImageDropzone 已完成「类型 / 大小」预检；单图模式下多选会被截断为 1 张
+async function onPickImageFiles(files: File[]) {
+  const file = files[0]
   if (!file) return
   uploading.value = true
   try {
@@ -233,17 +233,7 @@ onMounted(load)
           <el-input v-model="form.description" type="textarea" :rows="3" maxlength="300" show-word-limit placeholder="规格、领取方式等（可选）" />
         </el-form-item>
         <el-form-item label="商品图片">
-          <div class="goods-image-row">
-            <div class="goods-image-preview">
-              <img v-if="form.image_url" :src="resolveImageUrl(form.image_url)" alt="" />
-              <span v-else>◆</span>
-            </div>
-            <label class="goods-image-btn">
-              <input type="file" accept="image/*" :disabled="uploading" @change="onPickImage" />
-              {{ uploading ? '上传中…' : '上传图片' }}
-            </label>
-            <button v-if="form.image_url" type="button" class="goods-image-clear" @click="clearImage">移除</button>
-          </div>
+          <ImageDropzone mode="single" :previews="form.image_url ? [form.image_url] : []" :loading="uploading" label="拖拽商品图片到此处，或点击选择" hint="支持 JPG / PNG / WEBP，单张 ≤5MB；建议使用正方形图片" @files="onPickImageFiles" @remove="clearImage" />
         </el-form-item>
         <el-row :gutter="16">
           <el-col :xs="24" :sm="8">
@@ -286,12 +276,6 @@ onMounted(load)
 .goods-pagination{display:flex;justify-content:center;padding:20px 0 4px}
 .goods-form{max-width:100%}
 .goods-form-tip{margin:0;color:var(--muted);font-size:12px;line-height:1.6}
-.goods-image-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.goods-image-preview{width:72px;height:72px;display:grid;place-items:center;overflow:hidden;border-radius:10px;background:#edf5ee;color:#b6cdc2;font-size:24px}
-.goods-image-preview img{width:100%;height:100%;object-fit:cover}
-.goods-image-btn{display:inline-flex;align-items:center;padding:9px 14px;border:1px dashed #c8d7cd;border-radius:8px;color:var(--green);font-size:13px;cursor:pointer}
-.goods-image-btn input{display:none}
-.goods-image-clear{color:#e06c75;font-size:12px}
 @media(max-width:700px){
   .goods-search{width:100%}
   .goods-table-wrap{overflow-x:auto}

@@ -29,6 +29,7 @@ import TagWall from './TagWall.vue'
 import { createItem } from '../api/item'
 import { uploadImage } from '../api/upload'
 import AgentWriteDialog from './AgentWriteDialog.vue'
+import ImageDropzone from './ImageDropzone.vue'
 import type { AgentDraft } from '../api/agent'
 const store = useAppStore()
 
@@ -68,18 +69,23 @@ function applyDraft(draft: AgentDraft) {
 }
 
 
-async function handlePickImages(event: Event) {
-  const input = event.target as HTMLInputElement
-  const files = Array.from(input.files || []).filter((file) => file.type.startsWith('image/'))
-  input.value = ''
-  for (const f of files) {
-    try {
-      const url = await uploadImage(f)
-      insertDescAtCursor(`\n![图片](${url})\n`)
-      ElMessage.success('图片已插入描述')
-    } catch (err) {
-      ElMessage.error((err as Error).message || '图片上传失败，请重试')
+// 图片上传：ImageDropzone 已完成「类型 / 大小 / 张数」预检，这里逐张上传并把 Markdown 插到描述光标处
+const descUploading = ref(false)
+async function handlePickImages(files: File[]) {
+  if (!files.length) return
+  descUploading.value = true
+  try {
+    for (const f of files) {
+      try {
+        const url = await uploadImage(f)
+        insertDescAtCursor(`\n![图片](${url})\n`)
+        ElMessage.success('图片已插入描述')
+      } catch (err) {
+        ElMessage.error((err as Error).message || '图片上传失败，请重试')
+      }
     }
+  } finally {
+    descUploading.value = false
   }
 }
 
@@ -188,11 +194,10 @@ async function submitPost() {
       <el-row>
         <el-col :span="24"><el-form-item label="详细描述" :error="errors.desc" required><div class="desc-dropzone" :class="{ 'drag-over': descDragOver }" @dragover.prevent="descDragOver = true" @dragleave.prevent="descDragOver = false" @drop="onDescDrop">
             <el-input ref="descRef" v-model="form.desc" type="textarea" :rows="6" placeholder="支持 Markdown：标题、**加粗**、列表，也可把图片直接拖进此框" />
-            <div class="desc-upload-bar">
-              <label class="desc-upload-btn"><input type="file" accept="image/*" multiple @change="handlePickImages" /><span class="desc-upload-icon">＋</span>上传图片</label>
-              <span class="desc-upload-tip">支持 JPG / PNG / WEBP，选中的图片会自动插入到描述中</span>
-            </div>
           </div></el-form-item></el-col>
+        <el-col :span="24"><el-form-item label="物品图片">
+          <ImageDropzone mode="multi" :max="9" :loading="descUploading" label="拖拽图片到此处，或点击选择" hint="支持 JPG / PNG / WEBP，单张 ≤5MB；上传后会以 Markdown 自动插入上方描述中" @files="handlePickImages" />
+        </el-form-item></el-col>
       </el-row>
 
       <el-button type="primary" native-type="submit" class="publish-submit">发布</el-button>
@@ -204,7 +209,7 @@ async function submitPost() {
 </template>
 
 <style scoped>
-.publish-page{max-width:920px;margin:0 auto}.publish-intro{margin-bottom:24px}.publish-intro h1{margin:12px 0 8px;font-size:32px}.publish-intro p{margin:0;color:var(--muted)}.publish-form{padding:26px;background:#fff;border:1px solid var(--line);border-radius:14px}.publish-control,.publish-form .el-input,.publish-form .el-textarea,.publish-form .el-radio-group{width:100%}.publish-type{display:flex}.publish-type .el-radio-button{flex:1}.publish-type :deep(.el-radio-button__inner){width:100%}.publish-type :deep(.el-radio-button__inner:hover){color:var(--el-color-primary)}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner){background-color:var(--el-color-primary);border-color:var(--el-color-primary);box-shadow:-1px 0 0 0 var(--el-color-primary);color:#fff}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner:hover){background-color:var(--el-color-primary-dark-2);border-color:var(--el-color-primary-dark-2);box-shadow:-1px 0 0 0 var(--el-color-primary-dark-2);color:#fff}.desc-upload-bar{display:flex;align-items:center;gap:12px;margin-top:10px}.desc-upload-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border:1px solid var(--green);border-radius:8px;background:#fff;color:var(--green);font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}.desc-upload-btn:hover{background:var(--green);color:#fff}.desc-upload-btn input{display:none}.desc-upload-icon{font-size:15px;line-height:1}.desc-upload-tip{color:var(--muted);font-size:12px}.publish-form :deep(.el-textarea){width:100%}.publish-form :deep(.el-textarea__inner){width:100%}.publish-submit{width:100%;margin-top:8px}.desc-dropzone{padding:4px;border-radius:8px;transition:outline .15s;width:100%;box-sizing:border-box}.desc-dropzone.drag-over{outline:2px dashed var(--green);background:#f0f8f3}@media(max-width:700px){.publish-page{width:100%}.publish-form{padding:18px}.publish-form :deep(.el-col){max-width:100%;flex:0 0 100%}}
+.publish-page{max-width:920px;margin:0 auto}.publish-intro{margin-bottom:24px}.publish-intro h1{margin:12px 0 8px;font-size:32px}.publish-intro p{margin:0;color:var(--muted)}.publish-form{padding:26px;background:#fff;border:1px solid var(--line);border-radius:14px}.publish-control,.publish-form .el-input,.publish-form .el-textarea,.publish-form .el-radio-group{width:100%}.publish-type{display:flex}.publish-type .el-radio-button{flex:1}.publish-type :deep(.el-radio-button__inner){width:100%}.publish-type :deep(.el-radio-button__inner:hover){color:var(--el-color-primary)}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner){background-color:var(--el-color-primary);border-color:var(--el-color-primary);box-shadow:-1px 0 0 0 var(--el-color-primary);color:#fff}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner:hover){background-color:var(--el-color-primary-dark-2);border-color:var(--el-color-primary-dark-2);box-shadow:-1px 0 0 0 var(--el-color-primary-dark-2);color:#fff}.publish-form :deep(.el-textarea){width:100%}.publish-form :deep(.el-textarea__inner){width:100%}.publish-submit{width:100%;margin-top:8px}.desc-dropzone{padding:4px;border-radius:8px;transition:outline .15s;width:100%;box-sizing:border-box}.desc-dropzone.drag-over{outline:2px dashed var(--green);background:#f0f8f3}@media(max-width:700px){.publish-page{width:100%}.publish-form{padding:18px}.publish-form :deep(.el-col){max-width:100%;flex:0 0 100%}}
 .publish-intro-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .ai-write-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border:1px solid var(--green);border-radius:9px;background:#f2faf6;color:var(--green);font-size:13px;font-weight:700;transition:background .15s ease,color .15s ease}
 .ai-write-btn:hover{background:var(--green);color:#fff}
