@@ -7,7 +7,8 @@ export const navItems = {
   ],
   itemAdmin: [
     { key: 'audit', label: '审核中心', icon: '✓', roles: ['itemAdmin'] },
-    { key: 'manage', label: '物品管理', icon: '▦', roles: ['itemAdmin'] }
+    { key: 'manage', label: '物品管理', icon: '▦', roles: ['itemAdmin'] },
+    { key: 'dashboard', label: '数据总览', icon: '◫', roles: ['itemAdmin'] }
   ],
   systemAdmin: [
     { key: 'dashboard', label: '数据总览', icon: '◫', roles: ['systemAdmin'] },

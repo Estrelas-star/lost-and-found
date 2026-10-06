@@ -86,7 +86,13 @@ const filteredItems = computed(() => {
   return items.filter((it) => (it.tags ?? []).some((t) => selectedCategories.value.includes(t)))
 })
 const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
-const todayLabel = 'WED · 06.17'
+const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+const todayLabel = (() => {
+  const d = new Date()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${WEEKDAYS[d.getDay()]} · ${mm}.${dd}`
+})()
 const auditStatusFilter = ref<'全部' | '待审核'>('全部')
 const auditTypeFilter = ref<'全部' | ItemType>('全部')
 const auditSearch = ref('')
