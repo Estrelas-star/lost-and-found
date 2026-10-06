@@ -349,39 +349,6 @@
   margin-top: 4px;
 }
 
-.detail-stats {
-  justify-content: space-between;
-}
-
-.detail-stats>span,
-.detail-stats>button {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  white-space: nowrap;
-}
-
-.detail-stats button {
-  padding: 0;
-  color: inherit;
-  font-size: 11px;
-}
-
-.detail-stats button.active,
-.detail-stats .favorite-stat.active {
-  color: var(--green);
-}
-
-.detail-stats .like-stat.active {
-  color: #d65f67;
-}
-
-.detail-stats .like-stat span {
-  font-size: 15px;
-}
-
 .detail-modal-rich {
   width: min(620px,100%);
   padding: 18px;
@@ -466,26 +433,6 @@
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 12px;
-}
-
-.detail-stats {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  border-top: 1px solid #edf1ed;
-  padding: 14px 0 16px;
-  color: #899791;
-  font-size: 11px;
-}
-
-.detail-stats button {
-  padding: 0;
-  color: inherit;
-  font-size: 11px;
-}
-
-.detail-stats button.active {
-  color: #c66e54;
 }
 
 .detail-modal-rich .full-btn {
@@ -1720,6 +1667,7 @@ button {
 .claim-btn-wrap {
   display: block;
   width: 100%;
+  margin-top: 18px;
 }
 
 .toast {

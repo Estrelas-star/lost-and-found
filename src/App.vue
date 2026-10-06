@@ -32,7 +32,6 @@ const currentPage = ref(1)
 const pageSize = ref(6)
 const selectedItem = ref<Item | null>(null)
 const detailDialogVisible = ref(false)
-const detailSlide = ref(0)
 // 编辑我的发布弹窗状态
 const editDialogVisible = ref(false)
 const editingItem = ref<Item | null>(null)
@@ -86,13 +85,8 @@ const filteredItems = computed(() => {
   if (!selectedCategories.value.length) return items
   return items.filter((it) => (it.tags ?? []).some((t) => selectedCategories.value.includes(t)))
 })
-const detailImages = computed(() => selectedItem.value?.images?.length ? selectedItem.value.images : [])
-const detailViews = computed(() => 128 + (selectedItem.value?.id ?? 0) * 17)
-const todayLabel = 'WED · 06.17'
-const commentText = ref('')
-const replyTarget = ref<{ id: number, author: string } | null>(null)
-const detailComments = computed(() => selectedItem.value ? store.comments.filter((comment) => comment.itemId === selectedItem.value?.id) : [])
 const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
+const todayLabel = 'WED · 06.17'
 const auditStatusFilter = ref<'全部' | '待审核'>('全部')
 const auditTypeFilter = ref<'全部' | ItemType>('全部')
 const auditSearch = ref('')
@@ -180,9 +174,6 @@ function openItem(item: Item) {
   selectedItem.value = item
   store.fetchComments(item.id)
   detailDialogVisible.value = true
-  detailSlide.value = 0
-  commentText.value = ''
-  replyTarget.value = null
 }
 
 async function openItemById(id: number) {
@@ -199,19 +190,6 @@ function closeDetailDialog() {
   selectedItem.value = null
 }
 
-async function sendComment() {
-  const content = commentText.value.trim()
-  if (!selectedItem.value || !content) return
-  try {
-    await store.addComment({ itemId: selectedItem.value.id, author: store.currentUser.name, avatar: store.currentUser.name.slice(0, 1), content, parentId: replyTarget.value?.id, replyTo: replyTarget.value?.author })
-    commentText.value = ''
-    replyTarget.value = null
-    ElMessage.success('评论已发布')
-  } catch (e) {
-    ElMessage.error('评论发布失败，请稍后重试')
-  }
-}
-
 async function handleLogout() {
   profileMenuOpen.value = false
   await store.logout()            // 先等退出完成(清 token/用户/角色), 再跳登录页, 避免要点两下
@@ -223,11 +201,6 @@ function openSettings() {
 }
 
 function flash(text: string) { notice.value = text; setTimeout(() => { notice.value = '' }, 2200) }
-function refreshSelected() {
-  if (!selectedItem.value) return
-  const updated = store.remoteItems.find((i) => i.id === selectedItem.value!.id)
-  if (updated) selectedItem.value = updated
-}
 
 function friendlyMsg(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e)
@@ -246,21 +219,6 @@ async function removeMyItem(item: Item) {
 }
 
 
-async function claim(item: Item) {
-  if (!isActiveStatus(item.status)) {
-    flash('该物品当前不可认领')
-    return
-  }
-  try {
-    await store.submitClaim(item.id)
-    refreshSelected()
-    flash(item.type === 'lost' ? '已提交，等待失主联系' : '认领成功')
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : ''
-    if (/30006|绑定|qq|QQ/i.test(msg)) ElMessage.warning('认领需先绑定QQ，请前往账号设置绑定')
-    else ElMessage.error(friendlyMsg(e))
-  }
-}
 // 发布者确认认领（status 1->2，发放积分）
 async function confirmMyItem(item: Item) {
   try {
@@ -275,7 +233,6 @@ async function cancelMyItem(item: Item) {
   try {
     await store.cancelMyClaim(item.id)
     await store.fetchItems()
-    refreshSelected()
     flash('已撤销认领')
   } catch (e) { ElMessage.error(friendlyMsg(e)) }
 }
@@ -402,7 +359,6 @@ function submitReject() {
     <DetailDialog :item="selectedItem" :visible="detailDialogVisible" @close="closeDetailDialog" />
     <EditItemDialog :item="editingItem" :visible="editDialogVisible" @close="closeEditDialog" @saved="closeEditDialog" />
     <UserSettingsDialog :visible="settingsVisible" @close="settingsVisible = false" />
-    <div v-if="selectedItem" class="modal-backdrop" @click.self="selectedItem = null"><div class="detail-modal detail-modal-rich"><div class="detail-modal-actions"><button class="modal-action" @click="flash('举报信息已提交')">⚑ 举报</button><button class="modal-close" @click="selectedItem = null">×</button></div><div class="detail-gallery"><el-carousel v-if="detailImages.length" v-model="detailSlide" height="250px" arrow="always" indicator-position="outside"><el-carousel-item v-for="image in detailImages" :key="image"><img :src="resolveImageUrl(image)" alt="物品照片" /></el-carousel-item></el-carousel><div v-else class="detail-art" :class="selectedItem.color"><span>{{ selectedItem.icon }}</span><small>暂无照片</small></div></div><div class="detail-content"><span class="eyebrow">{{ selectedItem.type === 'lost' ? '寻物信息' : '招领信息' }} · {{ selectedItem.date }}</span><h2>{{ selectedItem.title }}</h2><div class="detail-tags"><el-tag v-for="tag in selectedItem.tags" :key="tag" effect="light">{{ tag }}</el-tag></div><div class="markdown-body" v-html="renderMarkdown(selectedItem.desc)"></div><div class="detail-lines"><span>⌖ {{ selectedItem.location }}</span><span>◷ {{ selectedItem.date }}</span><span>发布人：{{ selectedItem.author }}</span></div><div class="detail-stats"><span>◉ {{ detailViews }} 浏览</span><button class="like-stat" :class="{active: store.likedItemIds.includes(selectedItem.id)}" @click="store.toggleItemLike(selectedItem.id)"><span>♥</span> {{ store.likedItemIds.includes(selectedItem.id) ? '已赞' : '点赞' }}</button><button class="favorite-stat" :class="{active: store.favoriteItemIds.includes(selectedItem.id)}" @click="store.toggleFavorite(selectedItem.id)"><span>★</span> {{ store.favoriteItemIds.includes(selectedItem.id) ? '已收藏' : '收藏' }}</button></div><button v-if="store.role === 'student' && isActiveStatus(selectedItem.status)" class="primary-btn full-btn" @click="claim(selectedItem)">{{ selectedItem.type === 'lost' ? '我捡到了' : '申请认领' }}</button><button v-if="store.role === 'student' && store.isClaimedByMe(selectedItem) && selectedItem.status === '已认领'" class="primary-btn full-btn ghost" @click="cancelMyItem(selectedItem)">撤销认领</button><section class="comments-section"><div class="comments-heading"><h3>评论区</h3><span>{{ detailComments.length }} 条评论</span></div><div v-if="replyTarget" class="replying-to">正在回复 @{{ replyTarget.author }}<button type="button" @click="replyTarget = null">取消</button></div><div class="comment-composer"><el-input v-model="commentText" type="textarea" :rows="2" :placeholder="replyTarget ? `回复 @${replyTarget.author}` : '说说你的看法...'" maxlength="200" show-word-limit /><button type="button" class="send-comment" aria-label="发送评论" @click="sendComment">➤</button></div><div class="comment-list"><article v-for="comment in detailComments" :key="comment.id" class="comment-item" :class="{ 'comment-reply': comment.parentId }"><div class="comment-avatar">{{ comment.avatar }}</div><div class="comment-body"><div class="comment-meta"><strong>{{ comment.author }}</strong><time>{{ comment.date }}</time></div><p v-if="comment.replyTo" class="reply-label">回复 @{{ comment.replyTo }}</p><p class="comment-text">{{ comment.content }}</p><div class="comment-actions"><button type="button" @click="replyTarget = { id: comment.id, author: comment.author }">回复</button></div></div></article><el-empty v-if="!detailComments.length" description="还没有评论，来留下第一条吧" :image-size="70" /></div></section></div></div></div>
     <div v-if="notice" class="toast">✓ {{ notice }}</div>
   </div>
 </template>

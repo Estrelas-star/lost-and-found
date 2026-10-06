@@ -157,20 +157,6 @@ export const useAppStore = defineStore('app', () => {
     { id: 3, itemId: 2, author: '周同学', avatar: '周', date: '昨天 18:42', content: '如果有看到蓝色帆布包，麻烦帮忙留意一下，谢谢！' }
   ])
 
-  // —— 点赞 / 收藏（纯前端交互，后端暂无对应接口）——
-  const likedItemIds = ref<number[]>([])
-  const favoriteItemIds = ref<number[]>([])
-  function toggleItemLike(id: number) {
-    const i = likedItemIds.value.indexOf(id)
-    if (i >= 0) likedItemIds.value.splice(i, 1)
-    else likedItemIds.value.push(id)
-  }
-  function toggleFavorite(id: number) {
-    const i = favoriteItemIds.value.indexOf(id)
-    if (i >= 0) favoriteItemIds.value.splice(i, 1)
-    else favoriteItemIds.value.push(id)
-  }
-
   // 后端 CommentDTO 只返回 user_id，不返回昵称/头像（model/advanced/comment.go）；
   // 故作者暂以“用户#id”标识，待后端在 CommentDTO 补充 nickname/avatar 字段即可直接显示真实昵称。
   function formatCommentDate(iso: string): string {
@@ -488,5 +474,5 @@ export const useAppStore = defineStore('app', () => {
     })
     await fetchComments(comment.itemId)
   }
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, favoriteItemIds, likedItemIds, toggleFavorite, toggleItemLike, mapToFront }
+  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, reports, fetchReports, reviewReport, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
 })
