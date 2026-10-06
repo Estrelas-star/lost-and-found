@@ -65,7 +65,7 @@ function applyDraft(draft: AgentDraft) {
   }
   if (draft.location_detail) form.value.locationDetail = draft.location_detail
   errors.value = {}
-  ElMessage.success('已根据描述填入表单，请核对后发布')
+  // 这里的填入现在是「AI 帮写」对话框生成后自动触发的，成功提示由对话框内展示，不再重复弹 toast
 }
 
 
@@ -207,7 +207,14 @@ async function submitPost() {
     </el-form>
 
     <!-- AI 帮写：只做智能填充（POST /agent/extract），不建帖 -->
-    <AgentWriteDialog :visible="writeDialogVisible" @close="writeDialogVisible = false" @apply="applyDraft" />
+    <!-- 临时对话框：打开时自动带入表单已有内容并生成草稿 → 生成后自动填入表单（不跳转） -->
+    <AgentWriteDialog
+      :visible="writeDialogVisible"
+      :seed-title="form.title"
+      :seed-desc="form.desc"
+      @close="writeDialogVisible = false"
+      @apply="applyDraft"
+    />
   </section>
 </template>
 
