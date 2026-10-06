@@ -17,6 +17,9 @@ import AnnouncementBell from './components/AnnouncementBell.vue'
 import TagWall from './components/TagWall.vue'
 import AdminUsers from './components/AdminUsers.vue'
 import AnnouncementManager from './components/AnnouncementManager.vue'
+import ShopCenter from './components/ShopCenter.vue'
+import ManageGoods from './components/ManageGoods.vue'
+import AgentAssistant from './components/AgentAssistant.vue'
 import { getItem } from './api/item'
 import { resolveImageUrl } from './utils/image'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -56,7 +59,7 @@ const profileMenuOpen = ref(false)
 const settingsVisible = ref(false)
 const currentAvatar = computed(() => resolveImageUrl(store.authUser?.avatar))
 const roleLabels = { student: '学生端', itemAdmin: '失物招领管理', systemAdmin: '系统管理' }
-const pageTitle = computed(() => ({ home: '发现物品', publish: '发布信息', posts: '我的发布', claims: '我的认领', audit: '审核中心', manage: '物品管理', dashboard: '数据总览', users: '账号管理', notices: '公告管理' })[store.activeRoute])
+const pageTitle = computed(() => ({ home: '发现物品', assistant: '智能助手', publish: '发布信息', posts: '我的发布', claims: '我的认领', audit: '审核中心', manage: '物品管理', shop: '积分商城', goods: '商品管理', dashboard: '数据总览', users: '账号管理', notices: '公告管理' })[store.activeRoute])
 const visibleNavItems = computed(() => navItems[store.role].filter((item) => (item.roles as readonly Role[]).includes(store.role)))
 // 分类筛选改用标签墙（selectedCategories），不再需要 categoryOptions
 const locationOptions = computed(() => ['全部', ...store.locations.map((l) => l.name)])
@@ -170,6 +173,13 @@ function go(key: string) {
   router.push({ name: key })
 }
 
+// 首页「智能匹配」：带着当前搜索词跳到智能助手
+// （App.vue 是同一个组件实例，仅在 section 之间切换，所以首页筛选状态天然保留）
+function goSmartMatch() {
+  const q = search.value.trim()
+  router.push({ name: 'assistant', query: q ? { q } : {} })
+}
+
 function openItem(item: Item) {
   selectedItem.value = item
   store.fetchComments(item.id)
@@ -271,7 +281,7 @@ function submitReject() {
     </aside>
 
     <main class="main-content">
-      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><AnnouncementBell /><NotificationBell @open-item="openItemById" /><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small"><img v-if="currentAvatar" :src="currentAvatar" alt="" /><template v-else>{{ store.currentUser.name.slice(0, 1) }}</template></span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button class="profile-menu-item" @click="openSettings">账号设置</button><button @click="handleLogout">退出登录</button></div></div></div></header>
+      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><button v-if="store.role === 'student'" class="credit-chip" title="我的积分，点击进入积分商城" @click="go('shop')"><span>◆</span>{{ store.authUser?.credit ?? 0 }} 积分</button><AnnouncementBell /><NotificationBell @open-item="openItemById" /><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small"><img v-if="currentAvatar" :src="currentAvatar" alt="" /><template v-else>{{ store.currentUser.name.slice(0, 1) }}</template></span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button class="profile-menu-item" @click="openSettings">账号设置</button><button @click="handleLogout">退出登录</button></div></div></div></header>
       <div class="page-wrap">
         <AuditCenter v-if="store.activeRoute === 'audit'" />
         <ManageItems v-if="store.activeRoute === 'manage'" />
@@ -288,7 +298,10 @@ function submitReject() {
             <el-row :gutter="16">
               <el-col :span="24">
                 <el-form-item label="搜索">
-                  <el-input v-model="search" placeholder="搜索物品、地点、关键词" clearable />
+                  <div class="home-search-row">
+                    <el-input v-model="search" placeholder="搜索物品、地点、关键词" clearable />
+                    <button type="button" class="smart-match-btn" title="描述物品，让助手帮你找匹配的帖子" @click="goSmartMatch">✦ 智能匹配</button>
+                  </div>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -354,12 +367,14 @@ function submitReject() {
 
         <section v-else-if="store.activeRoute === 'users'" class="page-section"><AdminUsers /></section>
         <section v-else-if="store.activeRoute === 'notices'" class="page-section"><AnnouncementManager /></section>
+        <section v-else-if="store.activeRoute === 'shop'" class="page-section"><ShopCenter @open-settings="settingsVisible = true" /></section>
+        <section v-else-if="store.activeRoute === 'goods'" class="page-section"><ManageGoods /></section>
+        <section v-else-if="store.activeRoute === 'assistant'" class="page-section"><AgentAssistant @open-item="openItemById" /></section>
       </div>
     </main>
-    <DetailDialog :item="selectedItem" :visible="detailDialogVisible" @close="closeDetailDialog" />
+    <DetailDialog :item="selectedItem" :visible="detailDialogVisible" @close="closeDetailDialog" @open-item="openItemById" />
     <EditItemDialog :item="editingItem" :visible="editDialogVisible" @close="closeEditDialog" @saved="closeEditDialog" />
     <UserSettingsDialog :visible="settingsVisible" @close="settingsVisible = false" />
     <div v-if="notice" class="toast">✓ {{ notice }}</div>
   </div>
 </template>
-

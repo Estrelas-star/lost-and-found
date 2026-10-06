@@ -35,12 +35,6 @@ export function isActiveStatus(status: ItemStatus): boolean {
   return status === '寻找中' || status === '招领中'
 }
 
-export interface User {
-  name: string
-  id: string
-  label: string
-}
-
 export interface Item {
   id: number
   type: ItemType
@@ -77,12 +71,6 @@ export interface Comment {
   content: string
   parentId?: number
   replyTo?: string
-}
-
-const users: Record<Role, User> = {
-  student: { name: '林知夏', id: '2023010218', label: '普通学生' },
-  itemAdmin: { name: '赵老师', id: 'LF-ADMIN-01', label: '失物招领管理员' },
-  systemAdmin: { name: '陈老师', id: 'SYS-ADMIN-01', label: '系统管理员' }
 }
 
 // 后端 role(数字) <-> 前端 Role(字符串) 映射
@@ -151,11 +139,8 @@ export const useAppStore = defineStore('app', () => {
   // —— 本地存储审计（L1）：除 jwt-token(auth) 外，前端仅以下本地状态需要关注 ——
   //   • role：登录时由服务端同步（setRole(roleMap[user.role])），仅作未登录兜底展示，非关键决策源
   //   其余状态均为内存态，不落盘。 catch { return [] } }
-  const comments = ref<Comment[]>([
-    { id: 1, itemId: 1, author: '林知夏', avatar: '林', date: '今天 09:24', content: '请问是在图书馆哪一侧的自习区找到的呢？' },
-    { id: 2, itemId: 1, author: '李同学', avatar: '李', date: '今天 09:31', content: '是在三楼靠窗的位置，已经交给服务台了。', parentId: 1, replyTo: '林知夏' },
-    { id: 3, itemId: 2, author: '周同学', avatar: '周', date: '昨天 18:42', content: '如果有看到蓝色帆布包，麻烦帮忙留意一下，谢谢！' }
-  ])
+  // 真实评论（GET /item/:id/comments）：初始为空，由 fetchComments 灌入
+  const comments = ref<Comment[]>([])
 
   // 后端 CommentDTO 只返回 user_id，不返回昵称/头像（model/advanced/comment.go）；
   // 故作者暂以“用户#id”标识，待后端在 CommentDTO 补充 nickname/avatar 字段即可直接显示真实昵称。
@@ -188,7 +173,8 @@ export const useAppStore = defineStore('app', () => {
       const r = roleMap[authUser.value.role] ?? 'student'
       return { name: authUser.value.nickname || authUser.value.username, id: String(authUser.value.id), label: roleLabelMap[r] }
     }
-    return users[role.value] // 未登录兜底
+    // 未登录兜底：不再依赖已删除的演示账号常量，只给一个中性占位，避免页面读 name 时崩
+    return { name: '未登录', id: '-', label: roleLabelMap[role.value] }
   })
   // 侧边栏角标：我发布的、已被认领待我确认的数量（真实数据）
   const pendingCount = computed(() => myItems.value.filter((item) => item.status === '已认领').length)
@@ -309,12 +295,8 @@ export const useAppStore = defineStore('app', () => {
     return m
   })
 
-  // —— 举报审核（审核员）：真接口 + mock 兜底 ——
-  const reports = ref<ReportDTO[]>([
-    { id: 101, reporter_id: 5, target_type: 0, target_id: 2, reason: 1, description: '该帖子含不当内容，请核实。', status: 0, created_at: '2026-06-16 10:12', item: { id: 2, title: '蓝色帆布包', type: 1, status: 0, description: '包内有一本《设计心理学》和校园卡。' } },
-    { id: 102, reporter_id: 8, target_type: 0, target_id: 4, reason: 0, description: '疑似虚假招领信息。', status: 0, created_at: '2026-06-16 11:03', item: { id: 4, title: '银色保温杯', type: 1, status: 0, description: '杯身有一枚小树贴纸，落款为 W。' } },
-    { id: 103, reporter_id: 3, target_type: 0, target_id: 1, reason: 2, description: '重复刷屏。', status: 1, created_at: '2026-06-15 09:40', item: { id: 1, title: '黑色 AirPods Pro 2', type: 1, status: 1, description: '在靠窗自习区拾到，已交至图书馆服务台。' } },
-  ])
+  // —— 举报审核（审核员）：真实接口 GET /admin/reports（初始为空，失败保持空态） ——
+  const reports = ref<ReportDTO[]>([])
   async function fetchReports(params: ListReportsParams = { target_type: 0 }) {
     try {
       const res = await listReports(params)
@@ -326,7 +308,7 @@ export const useAppStore = defineStore('app', () => {
       }))
       reports.value = list
     } catch {
-      // 后端 /admin/reports 未就绪：保留上面 mock，界面照常演示
+      // 拉取失败（未登录 / 无权限 / 网络异常）：保持空列表，界面显示空态
     }
   }
   async function reviewReport(id: number, payload: { status: 1 | 2 | 3; audit_comment?: string }) {
@@ -461,8 +443,8 @@ export const useAppStore = defineStore('app', () => {
         comments.value = comments.value.filter((c) => c.itemId !== itemId).concat(fromServer)
       }
     } catch (e) {
-      // 后端 comment 接口未就绪（404/未实现）时，保留本地 mock，保证评论区不崩
-      console.warn('[comment] 拉取评论失败，保留本地 mock：', (e as Error).message)
+      // 拉取失败时不清空已展示的评论，保证评论区不崩
+      console.warn('[comment] 拉取评论失败：', (e as Error).message)
     }
   }
   async function addComment(comment: Omit<Comment, 'id' | 'date'>) {

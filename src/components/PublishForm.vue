@@ -28,6 +28,8 @@ import LocationSelector from './LocationSelector.vue'
 import TagWall from './TagWall.vue'
 import { createItem } from '../api/item'
 import { uploadImage } from '../api/upload'
+import AgentWriteDialog from './AgentWriteDialog.vue'
+import type { AgentDraft } from '../api/agent'
 const store = useAppStore()
 
 // 进入发布页时拉取真实标签（后端 /tag/list），否则下拉 store.tags 一直为空 -> 显示 no data
@@ -41,6 +43,30 @@ const rules: FormRules = {
   title: [{ required: true, min: 2, message: '请输入至少 2 个字符的物品名称', trigger: 'blur' }],
   contact: [{ required: true, min: 5, message: '请输入有效联系方式', trigger: 'blur' }]
 }
+
+// —— AI 帮写：把 /agent/extract 抽出的草稿灌进表单（只填表，不发布）——
+const writeDialogVisible = ref(false)
+function applyDraft(draft: AgentDraft) {
+  form.value.type = draft.type === 0 ? 'lost' : 'found'
+  if (draft.title) form.value.title = draft.title
+  if (draft.description) form.value.desc = draft.description
+  if (draft.contact) form.value.contact = draft.contact
+  // tag_names 只保留标签表里真实存在的名字，否则提交时 tagIdByName 映射不到 tag_id
+  if (draft.tag_names?.length) {
+    const known = draft.tag_names.filter((name) => store.tags.some((t) => t.name === name))
+    if (known.length) form.value.tags = known
+  }
+  // 地点：有 location_id 时按叶子 id 反推级联链路回填；否则退化为文本
+  if (draft.location_id != null) {
+    locationSelectorRef.value?.setLocation(draft.location_id)
+  } else if (draft.location_name) {
+    form.value.location = draft.location_name
+  }
+  if (draft.location_detail) form.value.locationDetail = draft.location_detail
+  errors.value = {}
+  ElMessage.success('已根据描述填入表单，请核对后发布')
+}
+
 
 async function handlePickImages(event: Event) {
   const input = event.target as HTMLInputElement
@@ -111,9 +137,14 @@ async function submitPost() {
 <template>
   <section class="publish-page">
     <div class="publish-intro">
-      <span class="eyebrow">CREATE A POST</span>
-      <h1>发布一条信息</h1>
-      <p>描述得越清楚，物品越快回到主人身边。</p>
+      <div class="publish-intro-head">
+        <div>
+          <span class="eyebrow">CREATE A POST</span>
+          <h1>发布一条信息</h1>
+          <p>描述得越清楚，物品越快回到主人身边。</p>
+        </div>
+        <button type="button" class="ai-write-btn" @click="writeDialogVisible = true">✦ AI 帮写</button>
+      </div>
     </div>
 
     <el-form ref="formRef" :model="form" :rules="rules" class="publish-form" label-position="top" @submit.prevent="submitPost">
@@ -166,9 +197,16 @@ async function submitPost() {
 
       <el-button type="primary" native-type="submit" class="publish-submit">发布</el-button>
     </el-form>
+
+    <!-- AI 帮写：只做智能填充（POST /agent/extract），不建帖 -->
+    <AgentWriteDialog :visible="writeDialogVisible" @close="writeDialogVisible = false" @apply="applyDraft" />
   </section>
 </template>
 
 <style scoped>
 .publish-page{max-width:920px;margin:0 auto}.publish-intro{margin-bottom:24px}.publish-intro h1{margin:12px 0 8px;font-size:32px}.publish-intro p{margin:0;color:var(--muted)}.publish-form{padding:26px;background:#fff;border:1px solid var(--line);border-radius:14px}.publish-control,.publish-form .el-input,.publish-form .el-textarea,.publish-form .el-radio-group{width:100%}.publish-type{display:flex}.publish-type .el-radio-button{flex:1}.publish-type :deep(.el-radio-button__inner){width:100%}.publish-type :deep(.el-radio-button__inner:hover){color:var(--el-color-primary)}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner){background-color:var(--el-color-primary);border-color:var(--el-color-primary);box-shadow:-1px 0 0 0 var(--el-color-primary);color:#fff}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner:hover){background-color:var(--el-color-primary-dark-2);border-color:var(--el-color-primary-dark-2);box-shadow:-1px 0 0 0 var(--el-color-primary-dark-2);color:#fff}.desc-upload-bar{display:flex;align-items:center;gap:12px;margin-top:10px}.desc-upload-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border:1px solid var(--green);border-radius:8px;background:#fff;color:var(--green);font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}.desc-upload-btn:hover{background:var(--green);color:#fff}.desc-upload-btn input{display:none}.desc-upload-icon{font-size:15px;line-height:1}.desc-upload-tip{color:var(--muted);font-size:12px}.publish-form :deep(.el-textarea){width:100%}.publish-form :deep(.el-textarea__inner){width:100%}.publish-submit{width:100%;margin-top:8px}.publish-submit{--el-button-bg-color:var(--el-color-primary);--el-button-border-color:var(--el-color-primary);--el-button-hover-bg-color:var(--el-color-primary-dark-2);--el-button-hover-border-color:var(--el-color-primary-dark-2);--el-button-active-bg-color:var(--el-color-primary-dark-2);--el-button-active-border-color:var(--el-color-primary-dark-2);--el-button-text-color:#fff;--el-button-hover-text-color:#fff;--el-button-active-text-color:#fff}.desc-dropzone{padding:4px;border-radius:8px;transition:outline .15s;width:100%;box-sizing:border-box}.desc-dropzone.drag-over{outline:2px dashed var(--green);background:#f0f8f3}@media(max-width:700px){.publish-page{width:100%}.publish-form{padding:18px}.publish-form :deep(.el-col){max-width:100%;flex:0 0 100%}}
+.publish-intro-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.ai-write-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border:1px solid var(--green);border-radius:9px;background:#f2faf6;color:var(--green);font-size:13px;font-weight:700;transition:background .15s ease,color .15s ease}
+.ai-write-btn:hover{background:var(--green);color:#fff}
+@media(max-width:700px){.ai-write-btn{width:100%;justify-content:center}}
 </style>

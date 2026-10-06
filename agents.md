@@ -58,14 +58,14 @@ AI 基于「菜单隐藏不等于权限控制」的原则完成登录守卫与�
 
 按「接口层、状态层、配置层、页面层、组件层、工具层」组织：
 
-- `src/api/*`：后端接口封装（http 统一请求 / 用户 / 物品 / 评论 / 通知 / 公告 / 统计 / 上传）。
+- `src/api/*`：后端接口封装（http 统一请求 / 用户 / 物品 / 评论 / 通知 / 公告 / 统计 / 上传 / **商城 shop** / **智能助手 agent**）。
 - `src/stores/app.ts`：认证、物品、通知、公告、评论与状态操作。
 - `src/navigation.ts`：三角色菜单配置。
 - `src/router.ts`：路由 + 元信息 + 守卫。
 - `src/App.vue`：工作台容器，按角色与 `activeRoute` 渲染业务模块。
 - `src/AppRoot.vue`：根组件，挂载 `RouterView`，监听 `auth:expired` 统一登出。
 - `src/views/`：`Login.vue`（登录 + 内嵌注册）、`Register.vue`。
-- `src/components/*`：`MetricCard`、`PublishForm`、`DetailDialog`、`AuditCenter`、`ManageItems`、`EditItemDialog`、`UserSettingsDialog`、`NotificationBell`、`AnnouncementBell`、`AnnouncementManager`、`AdminUsers`、`Dashboard`、`LocationSelector`、`TagWall`。
+- `src/components/*`：`MetricCard`、`PublishForm`、`DetailDialog`、`AuditCenter`、`ManageItems`、`EditItemDialog`、`UserSettingsDialog`、`NotificationBell`、`AnnouncementBell`、`AnnouncementManager`、`AdminUsers`、`Dashboard`、`LocationSelector`、`TagWall`、**`ShopCenter`、`ManageGoods`、`AgentAssistant`、`AgentWriteDialog`、`AgentImagePicker`、`SimilarItems`**。
 - `src/utils/`：`auth.ts`（JWT 存储/解码/续期）、`markdown.ts`、`image.ts`（图片地址解析）。
 - `src/styles.css`：全局布局、配色、响应式与交互视觉。
 
@@ -89,6 +89,9 @@ AI 基于「菜单隐藏不等于权限控制」的原则完成登录守卫与�
 14. **优化账号设置弹窗布局**：重构 `UserSettingsDialog.vue`，分「绑定 QQ / 修改资料 / 更换头像」三个分区（`el-divider` 分隔），绑定 QQ 完整流程（加入群 → 发验证码 → 确认绑定）与认领前置校验联动。
 15. **清理冗余 UI 代码**：清理详情弹窗冗余按钮、历史死代码，重构发现物品筛选栏（栅格布局 + 标签墙 + 地点级联）、修复分页器间距与物品管理表格横向滚动，发布描述支持 Markdown + 图片拖拽/选择自动插入。
 16. **移除无后端支撑的互动功能**：AI 协助移除了详情弹窗中无真实后端支持的浏览、点赞、收藏 UI（纯前端 Mock 数据），同步清理了 `likedItemIds` / `favoriteItemIds` 等冗余状态与相关样式，并调整认领按钮与评论区间距，以优化前端界面并聚焦核心业务闭环（评论 + 认领 / 线索）。
+17. **积分商城（shop）对接**：新增 `src/api/shop.ts`（商品列表/详情、兑换、我的兑换记录、商品 create/update/delete），实现学生端 `/app/shop`（积分卡 + 「商品兑换 / 我的兑换记录」页内 Tab、关键词与积分闭区间筛选、缺货置灰、二次确认、成功展示订单号与剩余积分并即时刷新积分）与管理端 `/app/goods`（失物招领管理员 role=1，商品增删改 + 图片上传 + 下架二次确认）；兑换前用 `GET /user/me` 的 `qq` 字段预判绑定状态，未绑定在页面引导前往「账号设置」（对齐后端 `11005`）；顶栏新增「我的积分」徽章（学生端）。
+18. **智能助手（agent）对接**：新增 `src/api/agent.ts`（`/agent/chat`、`/agent/match`、`/agent/extract`、`/agent/session/close`、`/item/:id/similar`）；实现学生端 `/app/assistant` 独立菜单页（对话气泡流、草稿预览卡、**两步确认**、候选匹配卡片、补充推荐、思考态与自动滚动、会话状态提示与「重新开始」），并按「标签 / 地点均为可选、发送时自动拼接进描述」的方式接入两项附加信息；发布页新增「✦ AI 帮写」（`AgentWriteDialog.vue`，走**只读** `/agent/extract` 生成草稿后一键填入表单，绝不直接建帖）；首页搜索框旁新增「✦ 智能匹配」（带 `?q=` 关键词跳转助手，首页筛选状态保留）；详情弹窗底部新增「相似帖子」（`SimilarItems.vue`，点击可在弹窗内切换物品）；**多模态图片上传**（`AgentImagePicker.vue`，复用 `POST /upload/image` 的格式/大小校验与代理抖动重试，最多 3 张、串行上传保序，图片与文字一同提交并在用户气泡内回显；因后端 `text` 必填，仅有图片时前端提示补文字）。
+19. **请求层增强与存量清理**：`http.ts` 新增 `ApiError`（携带业务 `code`）与 `RequestOptions.timeoutMs`（AbortController，Agent 需 ≥30s），并补齐 shop（11xxx / 50001）与 agent（12xxxx）段的友好文案；`unwrap` 改抛 `ApiError`（仍是 `Error` 子类，既有 `(e as Error).message` 与字符串正则匹配完全兼容）。同时移除 `stores/app.ts` 中的演示账号常量（`users`）与 mock 评论 / mock 举报，未登录兜底改为中性占位；修正 `index.html` 的入口脚本路径 `/src/main.js` → `/src/main.ts`。
 
 ## 7. 调试与关键问题修复
 
@@ -100,6 +103,8 @@ AI 基于「菜单隐藏不等于权限控制」的原则完成登录守卫与�
 4. Vite 代理上传图片间歇 502：定位为代理层抖动而非后端业务错误，对 5xx / 网络错误自动重试，业务错误（类型/大小/权限）立即抛出。
 5. 登录态误登出（随机 10005 抖动）：`http.ts` 区分「真未登录（无 Token 的 code=2）」与「带 Token 的权限不足」，避免所有接口跟着登出；同时支持响应头 Token 续期，避免 6h 后旧 Token 被拉黑掉线。
 6. 跨账号认领误判：认领状态完全以服务端 `claim_user_id` 为准，移除浏览器 localStorage 缓存判定。
+7. 智能助手「第二轮必须回传 `session_id`」：按契约实现会话严格模式（首轮不带、次轮原样回传；`created` / `cancelled` 后本地清空 session，下一轮按新会话处理），并对 `120001` 会话过期做「重置会话 + 提示重新描述」的降级，避免用户误以为草稿被吞。
+8. Agent 请求耗时导致的误判：`/agent/chat` 单次 2~8 秒，原先的裸 `fetch` 没有超时能力，前端会在后端尚未返回时被用户重复提交（会新建/覆盖会话）。为 `request()` 增加可选 `timeoutMs`（Agent 传 30s），并在 UI 上加「正在思考…」态与「请勿重复提交」提示，同时按下发按钮禁用逻辑（`sending`）拦截连点。
 
 ## 8. 验证方式
 
@@ -135,5 +140,33 @@ npm run dev
 - 物品详情弹窗的浏览 / 点赞 / 收藏功能已移除（无真实后端接口支撑，暂不保留）；评论作者暂以「用户#id」展示（后端 `CommentDTO` 暂未返回昵称/头像）。
 - 公告「已读」为前端 localStorage 记忆，无服务端已读接口。
 - 数据大屏为 CSS 自绘图表，ECharts 尚未接入。
+- **商城**：`goods` 表只有 `is_deleted`（软删）没有 `status`，后端也未提供「含已下架商品」的管理端列表接口，因此商品管理页复用公开列表 `GET /shop/goods/list` —— 只能看到未下架商品，**下架后无法在前端恢复**（界面已用 `el-alert` 明确提示）。兑换强制要求账号已绑定 QQ（`11005`），未绑定路径已做前置拦截与引导，但**真实兑换成功路径依赖 QQ 群机器人在线，前端无法自测**。
+- **智能助手**：图片经 `POST /upload/image` 上传后以**相对 URL** 提交给 `image_urls`（后端自动拼公网前缀，单张 ≤5MB），前端硬性限制**最多 3 张**（后端对超过 3 张会截断为前 3 张）；`text` 仍为**必填**，图片只能作为文字描述的补充，无法单独提交。可用性取决于后端 `openai.agent_enabled` 与 LLM 服务（单次 2~8 秒），未开启时返回 `120006` 并整页降级为提示态；三个 `/agent/*` 共享每用户 10 次/分钟限流，前端仅做 60 秒冷却提示，不做本地限流计数。
+- **智能助手会话不跨刷新持久化**：`session_id` 只存在组件内存中，刷新页面即按新会话处理（后端 TTL 为 30 分钟滑动续期，未实现 sessionStorage 恢复草稿）。
 - 移动端适配、Vercel 部署、后端审核流程补充为后续里程碑。
 
+## 11. 本次新增模块的手测清单（由人工执行，不在 CI 内）
+
+> 前置：后端运行在 `http://111.229.234.32:8080`；`npm run dev` 启动前端。
+
+**积分商城**
+
+1. 学生端菜单出现【积分商城】，顶栏出现积分徽章；直连 `/app/shop` 正常，失物招领管理员直连 `/app/shop` 被守卫拦回审核中心。
+2. 未绑定 QQ 的账号进入商城：兑换按钮显示「需先绑定 QQ」且不可点，点【去绑定】弹出账号设置。
+3. 失物招领管理员进入【商品管理】新增 1~2 件商品（含图片上传），学生端商城立即能看到。
+4. 已绑定 QQ 且积分充足时兑换：二次确认 → 成功弹窗显示订单号 / 消耗积分 / 剩余积分 → 顶栏积分即时刷新 →「我的兑换记录」出现该订单。
+5. 把库存改为 0 后学生端显示「缺货 / 暂不可兑换」；把积分改到高于用户余额后兑换应提示「积分不足」（`50001`）。
+6. 商品管理页编辑后学生端内容同步；下架后学生端消失（并留意管理页也不再显示，符合后端现状）。
+
+**智能助手**
+
+7. `/app/assistant` 发「我在图书馆三楼捡到一个黑色保温杯」→ 应 `stage=need_confirm` 且出现草稿卡；再回「确认」→ 成功卡出现，且「我的发布」新增该帖。
+8. 首轮后回「算了不发了」→ `cancelled`，且「我的发布」无新增。
+9. 发「有人捡到黑色水杯吗」→ 走匹配（不应出现草稿、不应建帖），候选卡可点开详情。
+10. 选择标签 + 地点后发送：用户气泡中应能看到拼接后的完整描述。
+11. 连续请求触发限流 → 出现 60 秒倒计时且发送按钮禁用。
+12. 首页搜索框输入关键词后点【✦ 智能匹配】→ 跳到助手且输入框已预填；返回首页筛选状态仍在。
+13. 发布页点【✦ AI 帮写】→ 点一条示例 → 生成草稿 → 【填入表单】后表单的类型 / 名称 / 描述 / 标签 / 地点 / 联系方式被回填，且**没有**产生新帖。
+14. 打开任意物品详情，底部出现「相似帖子」，点击后弹窗切换到该物品。
+15. 助手页上传 1~3 张图片 + 一段文字后发送：用户气泡内应回显图片与拼接后的描述；只传图片不写文字时应提示补文字；上传第 4 张应被拦截（最多 3 张）；点图片右上角「×」可移除。
+16. 发布页【✦ AI 帮写】上传 1 张图片 + 一句描述 → 生成草稿与「填入表单」的表现应与纯文字一致。

@@ -102,7 +102,28 @@ function reset() {
   if (usingReal.value) { selectedPath.value = [] }
   else { mockState.campus = ''; mockState.place = ''; mockState.buildingNo = ''; mockState.floor = ''; mockState.detail = '' }
 }
-defineExpose({ validate, reset })
+
+// —— 外部回填（AI 帮写 / 智能助手用）——
+// 直接设置级联路径；传 [] 即清空。赋值会触发上面的 watch，自动 emit locationId 与地点文案
+function setPath(path: number[]) {
+  if (!usingReal.value) return   // 演示兜底模式没有 location_id 语义，不支持回填
+  selectedPath.value = [...path]
+}
+// 按叶子地点 id 反推完整链路（根 → 叶）并选中；传 null/undefined 视为清空
+function setLocation(leafId?: number | null) {
+  if (!usingReal.value) return
+  if (leafId == null) { selectedPath.value = []; return }
+  const byId = new Map(store.locations.map((l) => [l.id, l]))
+  const chain: number[] = []
+  let cur = byId.get(leafId)
+  let guard = 0
+  while (cur && guard++ < 10) {
+    chain.unshift(cur.id)
+    cur = cur.parent_id ? byId.get(cur.parent_id) : undefined
+  }
+  selectedPath.value = chain
+}
+defineExpose({ validate, reset, setPath, setLocation })
 </script>
 
 <template>

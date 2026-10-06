@@ -2215,3 +2215,68 @@ button {
   flex-wrap: wrap;
   row-gap: 10px;
 }
+
+/* 顶栏「我的积分」徽章（学生端，点击进入积分商城） */
+.credit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border: 1px solid #cfe7dc;
+  border-radius: 20px;
+  background: #eff8f3;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.credit-chip span {
+  font-size: 11px;
+}
+
+.credit-chip:hover {
+  background: var(--mint);
+  border-color: var(--green);
+}
+
+/* 首页搜索框旁的「智能匹配」入口（跳转智能助手，带入关键词） */
+.home-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.home-search-row .el-input {
+  flex: 1;
+}
+
+.smart-match-btn {
+  flex: 0 0 auto;
+  padding: 8px 15px;
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  background: #f2faf6;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background .15s ease, color .15s ease;
+}
+
+.smart-match-btn:hover {
+  background: var(--green);
+  color: #fff;
+}
+
+@media(max-width:700px) {
+  .home-search-row {
+    flex-wrap: wrap;
+  }
+  .smart-match-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
