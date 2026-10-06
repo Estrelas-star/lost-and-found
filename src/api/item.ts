@@ -189,3 +189,21 @@ export function cancelClaim(id: number) {
 export function confirmItem(id: number) {
   return request<null>(`/item/${id}/confirm`, { method: 'POST' })
 }
+
+// —— 管理员强制撤回认领（role≥1）——
+/**
+ * 强制撤回认领：POST /admin/item/{itemID}/reset（无请求体）
+ *
+ * · 权限：role≥1（服务管理员 role=1、系统管理员 role=2 均可用）；role=0 或未登录 → code=2
+ * · 行为：**仅 status=1（已认领）可操作**；status 1→0，`claim_user_id` / `claim_time` 清空，`updated_at` 刷新；
+ *   物品重新出现在公开列表、可再次被认领；**不涉及积分 / 评论 / 图片 / 浏览量**；
+ *   后端向发布者与认领者各发一条站内通知（type=3 认领结果，标题「认领已被管理员撤销」）；
+ *   认领为空或认领者 == 发布者时后端只发一条，通知失败接口仍返回 code=0（前端无需补逻辑）。
+ * · 无批量版本；只能 1→0，**不支持改成 2**。
+ * · 错误码：1 参数错误 / 2 未登录或无权限 / 20001 物品不存在或已删除 /
+ *          20002 物品已关闭 / 20011 物品已是已发布，无需操作 / 6 服务端异常。
+ * · 成功返回 `data: {}`；响应头若带 Authorization 由 http.ts 自动续期本地 token。
+ */
+export function resetItemClaim(itemID: number) {
+  return request<Record<string, never>>(`/admin/item/${itemID}/reset`, { method: 'POST' })
+}

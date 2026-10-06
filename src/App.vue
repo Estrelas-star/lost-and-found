@@ -2,9 +2,8 @@
 import { renderMarkdown, firstImageUrl, stripImages } from './utils/markdown'
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAppStore, isActiveStatus, activeStatusFor, type Item, type ItemType, type Role } from './stores/app'
+import { useAppStore, type Item, type ItemType, type Role } from './stores/app'
 import { navItems } from './navigation'
-import MetricCard from './components/MetricCard.vue'
 import Dashboard from './components/Dashboard.vue'
 import PublishForm from './components/PublishForm.vue'
 import DetailDialog from './components/DetailDialog.vue'
@@ -89,7 +88,6 @@ const filteredItems = computed(() => {
   if (!selectedCategories.value.length) return items
   return items.filter((it) => (it.tags ?? []).some((t) => selectedCategories.value.includes(t)))
 })
-const pendingItems = computed(() => store.items.filter((item) => item.status === '待审核'))
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const todayLabel = (() => {
   const d = new Date()
@@ -97,22 +95,6 @@ const todayLabel = (() => {
   const dd = String(d.getDate()).padStart(2, '0')
   return `${WEEKDAYS[d.getDay()]} · ${mm}.${dd}`
 })()
-const auditStatusFilter = ref<'全部' | '待审核'>('全部')
-const auditTypeFilter = ref<'全部' | ItemType>('全部')
-const auditSearch = ref('')
-const auditPage = ref(1)
-const auditPageSize = ref(6)
-const rejectDialogVisible = ref(false)
-const rejectReason = ref('')
-const rejectingItemId = ref<number | null>(null)
-const auditItems = computed(() => pendingItems.value.filter((item) => {
-  const matchesStatus = auditStatusFilter.value === '全部' || item.status === auditStatusFilter.value
-  const matchesType = auditTypeFilter.value === '全部' || item.type === auditTypeFilter.value
-  const matchesSearch = `${item.title}${item.author}${item.location}${item.tags.join(' ')}`.toLowerCase().includes(auditSearch.value.trim().toLowerCase())
-  return matchesStatus && matchesType && matchesSearch
-}))
-const paginatedAuditItems = computed(() => auditItems.value.slice((auditPage.value - 1) * auditPageSize.value, auditPage.value * auditPageSize.value))
-
 // 筛选条件变化：重置到第 1 页并加 300ms 防抖，避免搜索框每敲一字就打一次后端
 let homeFilterTimer: ReturnType<typeof setTimeout> | null = null
 watch([filter, selectedCategories, locationFilter, locationPath, search], () => {
@@ -120,8 +102,6 @@ watch([filter, selectedCategories, locationFilter, locationPath, search], () => 
   if (homeFilterTimer) clearTimeout(homeFilterTimer)
   homeFilterTimer = setTimeout(() => applyHomeFilters(), 300)
 })
-watch([auditStatusFilter, auditTypeFilter, auditSearch], () => { auditPage.value = 1 })
-
 const roleHome = { student: 'home', itemAdmin: 'audit', systemAdmin: 'dashboard' } as const
 
 watch(() => route.meta.page, (page) => {
@@ -254,21 +234,6 @@ async function cancelMyItem(item: Item) {
   } catch (e) { ElMessage.error(friendlyMsg(e)) }
 }
 
-function openRejectDialog(id: number) {
-  rejectingItemId.value = id
-  rejectReason.value = ''
-  rejectDialogVisible.value = true
-}
-
-function submitReject() {
-  if (!rejectingItemId.value || !rejectReason.value.trim()) {
-    flash('请填写驳回原因')
-    return
-  }
-  store.reject(rejectingItemId.value, rejectReason.value.trim())
-  rejectDialogVisible.value = false
-  flash('已驳回该信息')
-}
 </script>
 
 <template>
@@ -282,7 +247,7 @@ function submitReject() {
       </div>
       <nav>
         <p class="nav-caption">{{ roleLabels[store.role] }}</p>
-        <button v-for="item in visibleNavItems" :key="item.key" class="nav-item" :class="{ active: store.activeRoute === item.key }" @click="go(item.key)"><span>{{ item.icon }}</span>{{ item.label }}<b v-if="item.key === 'audit' && pendingItems.length">{{ pendingItems.length }}</b></button>
+        <button v-for="item in visibleNavItems" :key="item.key" class="nav-item" :class="{ active: store.activeRoute === item.key }" @click="go(item.key)"><span>{{ item.icon }}</span>{{ item.label }}</button>
       </nav>
       <div class="sidebar-bottom"><button class="help-link" :class="{ active: store.activeRoute === 'help' }" @click="go('help')">? <span>帮助与反馈</span></button><div class="version">拾光 v1.0 · 让每件物品回家</div></div>
     </aside>
@@ -368,7 +333,6 @@ function submitReject() {
 
         <section v-else-if="store.activeRoute === 'posts' || store.activeRoute === 'claims'" class="page-section"><div class="section-intro"><span class="eyebrow">PERSONAL SPACE</span><h1>{{ pageTitle }}</h1><p>追踪你的每一次发布与认领进度。</p></div><div class="table-panel"><div v-if="store.activeRoute === 'posts'" v-for="item in store.myItems" :key="item.id" class="table-row"><div class="mini-visual" :class="item.color">{{ item.icon }}</div><div class="row-main"><strong>{{ item.title }}</strong><small>{{ item.location }} · {{ item.date }}</small></div><span class="status-pill">{{ item.status }}</span><button class="text-btn" @click="openItem(item)">查看详情</button><button class="text-btn" @click="openEdit(item)">编辑</button><template v-if="item.status === '已认领'"><button class="text-btn" @click="confirmMyItem(item)">确认认领</button></template><button class="text-btn" style="color:#e06c75" @click="removeMyItem(item)">删除</button></div><div v-else v-for="claimItem in store.myClaims" :key="claimItem.id" class="table-row"><div class="mini-visual blue">♡</div><div class="row-main"><strong>{{ claimItem.title }}</strong><small>{{ claimItem.location }} · {{ claimItem.date }}</small></div><span class="status-pill">{{ claimItem.status }}</span><button v-if="claimItem.status === '已认领'" class="text-btn" @click="cancelMyItem(claimItem)">撤销认领</button></div><div v-if="(store.activeRoute === 'posts' ? store.myItems : store.myClaims).length === 0" class="empty-state">{{ store.activeRoute === 'posts' ? '你还没有发布任何物品' : '这里还没有记录' }}</div></div></section>
 
-        <section v-else-if="store.activeRoute === 'audit'" class="page-section audit-page"><div class="section-intro"><span class="eyebrow">OPERATIONS</span><h1>审核中心</h1><p>集中处理新提交的失物招领信息。</p></div><div class="metrics"><MetricCard label="待处理审核" :value="pendingItems.length" trend="需要你的判断" tone="mint"/><MetricCard label="本周已处理" value="32" trend="较上周 +12%" tone="yellow"/><MetricCard label="当前筛选结果" :value="auditItems.length" trend="实时更新" tone="blue"/></div><div class="audit-toolbar"><el-input v-model="auditSearch" clearable placeholder="搜索物品名称、发布者或地点" class="audit-search"/><el-select v-model="auditStatusFilter" placeholder="按状态"><el-option label="全部状态" value="全部"/><el-option label="待审核" value="待审核"/></el-select><el-select v-model="auditTypeFilter" placeholder="按类型"><el-option label="全部类型" value="全部"/><el-option label="寻物" value="lost"/><el-option label="招领" value="found"/></el-select></div><div class="audit-table-wrap"><el-table :data="auditItems" stripe empty-text="暂无待审核信息"><el-table-column label="图片" width="82"><template #default="{ row }"><div class="audit-thumb" :class="row.color"><img v-if="row.images?.[0]" :src="resolveImageUrl(row.images[0])" alt="物品图片"/><span v-else>{{ row.icon }}</span></div></template></el-table-column><el-table-column prop="title" label="物品名称" min-width="170"/><el-table-column label="分类" min-width="130"><template #default="{ row }"><div class="audit-tags"><el-tag v-for="tag in row.tags" :key="tag" size="small">{{ tag }}</el-tag></div></template></el-table-column><el-table-column prop="author" label="发布者" min-width="100"/><el-table-column prop="date" label="发布时间" min-width="100"/><el-table-column label="当前状态" min-width="100"><template #default="{ row }"><el-tag type="warning">{{ row.status }}</el-tag></template></el-table-column><el-table-column label="操作" fixed="right" width="160"><template #default="{ row }"><el-button type="success" link @click="store.approve(row.id); flash('已通过审核')">通过</el-button><el-button type="danger" link @click="flash('驳回功能下一步接入')">驳回</el-button></template></el-table-column></el-table></div></section>
 
 <section v-else-if="store.activeRoute === 'dashboard'" class="page-section"><Dashboard /></section>
 

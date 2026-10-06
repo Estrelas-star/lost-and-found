@@ -2,9 +2,10 @@
 import { computed, ref } from 'vue'
 import { login as apiLogin, logout as apiLogout, getMe, createUser, updateUser, getQQCode, bindQQ as bindQQApi } from '../api/user'
 import {
-  listItems, getItem, listTags, listLocations, listMyItems, getItemCount,
+  listItems, listTags, listLocations, listMyItems, getItemCount,
   updateItem as updateItemApi, deleteItem as deleteItemApi, closeItem as closeItemApi,
   claimItem, cancelClaim, confirmItem,
+  resetItemClaim as resetItemClaimApi,
   type TagDTO, type LocationDTO, type ListItemsParams, type ItemDTO,
 } from '../api/item'
 import { setAuth, clearAuth, getToken, getStoredUser } from '../utils/auth'
@@ -136,7 +137,6 @@ export const useAppStore = defineStore('app', () => {
     saveIdList(READ_KEY, readNoticeIds.value)
   }
   const unreadNoticeCount = computed(() => notices.value.filter((n) => !readNoticeIds.value.includes(n.id)).length)
-  const items = ref<Item[]>([])
   // —— 本地存储审计（L1）：除 jwt-token(auth) 外，前端仅以下本地状态需要关注 ——
   //   • role：登录时由服务端同步（setRole(roleMap[user.role])），仅作未登录兜底展示，非关键决策源
   //   其余状态均为内存态，不落盘。 catch { return [] } }
@@ -217,10 +217,6 @@ export const useAppStore = defineStore('app', () => {
     } catch {
       forceLogout()                                   // 会话已失效，回退未登录
     }
-  }
-
-  function publish(item: Omit<Item, 'id' | 'author' | 'date' | 'status'> & { status?: ItemStatus }) {
-    items.value.unshift({ id: Date.now(), ...item, status: role.value === 'student' ? '待审核' : item.status || '待审核', author: currentUser.value.name, date: '刚刚' })
   }
 
   // —— 真实后端数据（与本地 mock 并存，不替换）——
@@ -325,6 +321,12 @@ export const useAppStore = defineStore('app', () => {
   }
   // 发布者确认认领：/item/:id/confirm（1->2，发放积分）
   async function confirmMyItem(id: number) { await confirmItem(id) }
+  // —— 管理员强制撤回认领：POST /admin/item/:id/reset（role≥1；仅 status=1 可操作，只能 1→0）——
+  // 契约：成功或返回 20001/20002/20011 都不能前端改状态，一律以服务端最新数据为准
+  async function resetItemClaim(id: number) {
+    await resetItemClaimApi(id)
+    await fetchItems()   // 撤回后 status 回到 0，可能不再匹配当前筛选，故重新拉列表
+  }
   // 我的认领页数据源：公开列表中我认领过的物品（进入 claims 页时拉全量）
   // “我是否认领”：完全以服务端返回的 claim_user_id 为准（item.claimedBy === 当前用户id）；
   //   不再使用浏览器 localStorage 缓存，杜绝跨账号误判（见 isClaimedByMe）
@@ -420,18 +422,6 @@ export const useAppStore = defineStore('app', () => {
   async function sendQQCode(qq: number) {
     await getQQCode({ qq })         // POST /user/qq/get-code
   }
-  function approve(id: number) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = activeStatusFor(item.type) }
-  function reject(id: number, reason: string) { const item = items.value.find((entry) => entry.id === id); if (item) item.status = '已驳回' }
-  function updateItem(id: number, patch: Partial<Item>) {
-    const item = items.value.find((entry) => entry.id === id)
-    if (item) Object.assign(item, patch)
-  }
-  function toggleItemPublished(id: number) {
-    const item = items.value.find((entry) => entry.id === id)
-    if (!item) return
-    item.status = item.status === '已关闭' ? activeStatusFor(item.type) : '已关闭'
-  }
-  function removeItem(id: number) { items.value = items.value.filter((entry) => entry.id !== id) }
   async function fetchComments(itemId: number) {
     try {
       const res = await listComments({ item_id: itemId, started_id: 0, limit: 100 })
@@ -453,5 +443,5 @@ export const useAppStore = defineStore('app', () => {
     })
     await fetchComments(comment.itemId)
   }
-  return { role, activeRoute, isAuthenticated, notices, items, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, publish, fetchItems, submitClaim, approve, reject, cancelMyClaim, confirmMyItem, addComment, fetchComments, updateItem, toggleItemPublished, removeItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, fetchAllUnreadIds, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
+  return { role, activeRoute, isAuthenticated, notices, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, fetchItems, submitClaim, cancelMyClaim, confirmMyItem, addComment, fetchComments, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, resetItemClaim, forceLogout, initSession, isClaimedByMe, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, fetchAllUnreadIds, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
 })
