@@ -72,8 +72,8 @@ export interface Comment {
   avatar: string
   date: string
   content: string
+  /** 父评论 id；undefined = 根楼层（子回复的「回复 @谁」由前端按 parentId 反查，不再另设 replyTo 字段） */
   parentId?: number
-  replyTo?: string
 }
 
 // 后端 role(数字) <-> 前端 Role(字符串) 映射

@@ -159,8 +159,14 @@
 }
 
 .comment-item.comment-reply {
-  margin-left: 34px;
   padding-top: 11px;
+}
+
+/* 子楼层容器：缩进 + 左侧竖线（linux.do 风格），缩进量由嵌套层级自带 */
+.comment-children {
+  margin: 2px 0 0 15px;
+  padding-left: 14px;
+  border-left: 2px solid #eef2ef;
 }
 
 .comment-avatar {
@@ -196,6 +202,12 @@
   font-size: 10px;
 }
 
+/* 楼层号（#1、#2…）：按 id 升序的序号，用来直观体现「按楼层排序」 */
+.comment-floor {
+  color: #bcc6c0;
+  font-size: 10px;
+}
+
 .reply-label {
   margin: 5px 0 0;
   color: var(--green);
@@ -209,10 +221,40 @@
   line-height: 1.6;
 }
 
+.comment-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 「N 个回复 ⌄」展开 / 收起按钮（仅父楼层有子回复时出现） */
+.comment-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f3f6f4;
+  color: #7c8a83;
+  font-size: 11px;
+  transition: background .2s, color .2s;
+}
+
+.comment-toggle:hover,
+.comment-toggle.is-open {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.comment-toggle-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
 .comment-actions {
   display: flex;
-  justify-content: flex-end;
   gap: 14px;
+  margin-left: auto;
 }
 
 .comment-actions button {
@@ -226,8 +268,33 @@
   color: var(--green);
 }
 
+/* 「↓ 跳到回复」的目标楼层：滚过来后闪一下绿底 */
+.comment-highlight {
+  border-radius: 8px;
+  animation: comment-jump 1.6s ease-out;
+}
+
+@keyframes comment-jump {
+  from { background: var(--green-soft); }
+  to { background: transparent; }
+}
+
+@media(prefers-reduced-motion:reduce) {
+  .comment-highlight {
+    animation: none;
+    background: var(--green-soft);
+  }
+}
+
 .comment-list .el-empty {
   padding: 12px 0;
+}
+
+@media(max-width:640px) {
+  .comment-children {
+    margin-left: 6px;
+    padding-left: 10px;
+  }
 }
 
 .send-comment:disabled {

@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/app'
 import { uploadImage } from '../api/upload'
+import { copyText } from '../utils/clipboard'
 import ImageDropzone from './ImageDropzone.vue'
 
 const props = defineProps<{ visible: boolean }>()
@@ -15,6 +16,17 @@ const isBoundQQ = computed(() => !!(store.authUser && store.authUser.qq))
 
 // —— 绑定 QQ ——
 const qqGroup = '1056181967'
+// 群号一键复制：整颗按钮都可点，复制成功后按钮内文案短暂变成「已复制」
+const copiedQQ = ref(false)
+let copiedTimer: number | undefined
+async function copyQQGroup() {
+  const ok = await copyText(qqGroup)
+  if (!ok) { ElMessage.warning(`复制失败，请手动记下群号 ${qqGroup}`); return }
+  copiedQQ.value = true
+  ElMessage.success(`群号已复制：${qqGroup}`)
+  window.clearTimeout(copiedTimer)
+  copiedTimer = window.setTimeout(() => { copiedQQ.value = false }, 2000)
+}
 const qqCode = ref('')
 const qq = ref('')
 const sendingCode = ref(false)
@@ -99,11 +111,14 @@ const dialogVisible = computed({
   <el-dialog v-model="dialogVisible" title="账号设置" width="520px" @close="emit('close')">
     <div class="us-section">
       <h3>绑定 QQ</h3>
-      <p class="us-tip">认领物品需要绑定 QQ。请先加入 QQ 群 <b>{{ qqGroup }}</b>，再获取验证码完成绑定。</p>
+      <p class="us-tip">认领物品需要绑定 QQ。请先加入 QQ 群（点下方按钮复制群号），再获取验证码完成绑定。</p>
       <div v-if="!isBoundQQ">
         <div class="us-row">
           <span class="us-current">当前绑定：{{ boundQQ || '未绑定' }}</span>
-          <a class="us-link" :href="`https://qm.qq.com/q/${qqGroup}`" target="_blank" rel="noopener">加入 QQ 群</a>
+          <button type="button" class="us-qq-copy" :title="`点击复制群号 ${qqGroup}`" @click="copyQQGroup">
+            QQ（{{ qqGroup }}）
+            <span class="us-qq-copy-btn" :class="{ 'is-done': copiedQQ }">{{ copiedQQ ? '已复制' : '复制' }}</span>
+          </button>
         </div>
         <div class="us-row">
           <el-input v-model="qq" placeholder="输入你的 QQ 号" style="width:180px" />
@@ -149,7 +164,34 @@ const dialogVisible = computed({
 .us-tip { margin: 0 0 10px; color: #75817d; font-size: 12px; line-height: 1.6; }
 .us-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .us-current { font-size: 13px; color: #4b5563; }
-.us-link { color: var(--green); font-size: 13px; }
+/* QQ 群号复制按钮：整颗按钮即「复制」动作，左侧是群号、右侧是复制胶囊 */
+.us-qq-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: #4b5563;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .2s, color .2s, background .2s;
+}
+.us-qq-copy:hover { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+.us-qq-copy .us-qq-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 11px;
+  transition: background .2s, color .2s;
+}
+.us-qq-copy:hover .us-qq-copy-btn,
+.us-qq-copy .us-qq-copy-btn.is-done { background: var(--green); color: #fff; }
 .us-bound { margin: 0; font-size: 13px; color: #4b5563; }
 .us-form { display: flex; flex-direction: column; gap: 12px; max-width: 320px; }
 .us-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #4b5563; }

@@ -65,8 +65,8 @@ AI 基于「菜单隐藏不等于权限控制」的原则完成登录守卫与�
 - `src/App.vue`：工作台容器，按角色与 `activeRoute` 渲染业务模块。
 - `src/AppRoot.vue`：根组件，挂载 `RouterView`，监听 `auth:expired` 统一登出。
 - `src/views/`：`Login.vue`（登录 + 内嵌注册）、`Register.vue`。
-- `src/components/*`：`MetricCard`、`PublishForm`、`DetailDialog`、`ManageItems`、`EditItemDialog`、`UserSettingsDialog`、`NotificationBell`、`AnnouncementBell`、`AnnouncementManager`、`AdminUsers`、`Dashboard`、`LocationSelector`、`TagWall`、**`ShopCenter`、`ManageGoods`、`AgentAssistant`、`AgentWriteDialog`、`AgentImagePicker`、`SimilarItems`**。
-- `src/utils/`：`auth.ts`（JWT 存储/解码/续期）、`markdown.ts`、`image.ts`（图片地址解析）。
+- `src/components/*`：`MetricCard`、`PublishForm`、`DetailDialog`、`ManageItems`、`EditItemDialog`、`UserSettingsDialog`、`NotificationBell`、`AnnouncementBell`、`AnnouncementManager`、`AdminUsers`、`Dashboard`、`LocationSelector`、`TagWall`、**`ShopCenter`、`ManageGoods`、`AgentAssistant`、`AgentWriteDialog`、`AgentImagePicker`、`SimilarItems`、`CommentItem`（评论楼层树递归组件）、`ImageDropzone`、`HelpCenter`**。
+- `src/utils/`：`auth.ts`（JWT 存储/解码/续期）、`markdown.ts`、`image.ts`（图片地址解析）、`imageFile.ts`（图片预检）、`clipboard.ts`（复制文本，含非安全上下文降级）、`cookie.ts`、`helpContent.ts`。
 - `src/styles.css`：全局布局、配色、响应式与交互视觉。
 
 ## 6. 本阶段 AI 具体工作
@@ -136,6 +136,9 @@ AI 基于「菜单隐藏不等于权限控制」的原则完成登录守卫与�
 39. **补回评论功能（按后端代码契约 + 前端兜底绕过接口缺陷）**：`api_guide.md` / `api_agent.md` **均无 comment 章节**（范围声明里也没有），故契约以后端代码为准（`router/advanced/comment_router.go`、`model/advanced/comment.go`、`service/advanced/comment_service.go`、`dao/comment.go`）。实现上从 git（`4076d5d^`）恢复旧实现，并按后端现状做 3 处**必要适配** —— ① **`parent_id` 判根**：后端是 int64、**0 表示根评论**（不是 null），旧代码 `dto.parent_id ?? undefined` 会把根评论误判成回复并缩进，改为 `parent_id > 0 ? parent_id : undefined`；② **`limit` 必须显式传**：后端 `limit=0`（缺省）时只会返回 1 条；③ **按 id 去重**：后端列表接口的游标循环（`startat = started_id - loop*limit`，只在「凑满 limit」或 `startat <= 0` 时退出）会导致「评论数 < limit 时同一条评论重复返回」「0 条评论时按 `started_id/limit` 空转查询（缺省参数下 ≈ 1 万次）」——前端用 `COMMENT_PULL_LIMIT = 999999` 让第一轮取完、第二轮 `startat = 0` 立即返回（**整个请求只打 1 次数据库**），并在 store 里用 `Set` 去重兜底；`src/api/comment.ts` 文件头写清了原因与「后端修复后如何改回」。其它适配：`createComment` 的 `user_id` 必须传本人非 0（后端 `binding:"required"`，随后用登录态覆盖）、`item_id` 以 **body** 为准（路径参数不参与校验）；`addComment` 签名简化为 `{ itemId, content, parentId }`；评论拉取时机放在 `DetailDialog` 内 `watch(() => props.item?.id)`（比旧版 `App.vue.openItem()` + 组件内 `onMounted` 更稳，且避免每次打开重复请求、覆盖「相似帖子」切换物品的场景）。恢复范围：新建 `src/api/comment.ts`、`stores/app.ts`（`Comment` / `comments` / `formatCommentDate` / `mapToComment` / `fetchComments` / `addComment` 与导出项）、`DetailDialog.vue`（评论区 UI 与脚本）、`styles.css`（167 行评论样式）、`helpContent.ts`（学生端「评论与回复」章节）；文档同步 README（简介 / API 表 / 详情弹窗 / 当前边界）、`spec.md`（§2.1、§3.4 结构与功能、恢复 §3.5 并补契约与后端缺陷说明、§5 类型、§6 边界）、`plan.md`。管理端「隐藏 / 恢复评论」（`PATCH .../update`，role≥1）按计划**未做 UI**，仅在接口层保留函数备用。
 
 
+40. **评论楼层树（对齐 linux.do）+ 绑定 QQ 群号一键复制**：① **评论树** —— 新增递归组件 `src/components/CommentItem.vue`（Vue SFC 按文件名**自引用**，并 `defineOptions({ name: 'CommentItem' })`；编译产物为 `_resolveComponent("CommentItem", true)`，运行期回落到实例自身），`DetailDialog` 把 store 中后端返回的 **id 倒序重排为楼层升序**（`comments` 计算属性 `.sort((a, b) => a.id - b.id)`），根楼层交给 `CommentItem` 递归渲染：父楼层显示「N 个回复 ⌄」胶囊（`N` = **直接子级数**）默认折叠，展开后子级缩进 + 左侧竖线；**子回复与父楼层是同一套模板**，只多一个「↓ 跳到回复」（`emit('jump', parentId)` → 父级 `scrollIntoView({ block:'center' })` + `highlightId` 高亮 1.6s，`prefers-reduced-motion` 下只静态高亮）；展开状态由 `DetailDialog.expandedIds` 统一持有（**回复后自动展开目标楼层**、切换物品 / 「相似帖子」时重置）；子回复按 `parentId` 反查显示「回复 @父作者」；作者 / 头像仍由 `mapToComment` 映射。**防御**：子级过滤剔除 `parent_id === 自身 id` 的脏数据，并设递归上限 `MAX_DEPTH = 6`（否则环状 `parent_id` 会让前端递归到卡死）。顺手删掉从未被赋值的 `Comment.replyTo` 字段。② **QQ 群号复制** —— `UserSettingsDialog` 把「加入 QQ 群」超链接换成**整颗可点**的「QQ（1056181967）｜复制」按钮（`<button class="us-qq-copy">`，右半为「复制」胶囊，hover 变绿），点击即复制群号、文案短暂变「已复制」；新增 `src/utils/clipboard.ts`（优先 `navigator.clipboard`（**仅安全上下文**可用），否则降级 `textarea` + `document.execCommand('copy')`，兼容 http + IP 部署；失败返回 `false`，由调用方提示「可手动记下群号」而不是假成功）；删除死样式 `.us-link`。③ 样式：`styles.css` 新增 `.comment-children`（缩进 + 左侧竖线）/ `.comment-foot` / `.comment-toggle` / `.comment-floor` / `.comment-highlight` + `comment-jump` 动画，并移除 `.comment-item.comment-reply` 的 `margin-left`（缩进改由嵌套容器负责）、≤640px 收窄缩进。④ 验证：`npm run type-check` 与 `npm run build` 通过；另写了**临时冒烟脚本**（`@vue/compiler-sfc` 编译 SFC → `typescript.transpileModule` 转 JS → **自建内存渲染器**跑真实客户端 patch），实测确认「自引用递归可解析且无告警」「折叠态只渲染根楼层」「展开后子级 / 楼层号 / `回复 @父作者` / `↓ 跳到回复` 均出现」「点展开按钮能触发重渲染」「`parent_id` 指向自身的脏数据不会卡死」，跑完即删。⑤ 文档同步：README（详情弹窗 / 当前边界）、`spec.md`（§3.3 绑定流程、§3.4 评论区、§3.5 楼层树细节）、`plan.md`（阶段二十三 + M6.20）、`helpContent.ts`（学生端「评论与回复」、账号设置、详情弹窗说明）。
+
+
 处理过的问题：
 
 1. `App.vue` 脚本解析错误：重查 `submitPost`、`claim` 等函数，补齐函数体、对象括号与字符串，并改为多行提升可读性。
@@ -150,6 +153,10 @@ AI 基于「菜单隐藏不等于权限控制」的原则完成登录守卫与�
 9. 合并引入的重复路由（`/app/dashboard` 注册两次）：症状是「点菜单能进、刷新被踢回」——因为 Vue Router 按 name 与按 path 的解析结果不同（name 取后声明、path 取先声明）。此类问题 `npm run build` 与类型检查都不会报，只能靠跑起来 + **在页面按 F5** 复现，因此合并后除 diff 复核外还需按「直连/刷新」路径走一遍。
 10. 通知「假成功」提示：`stores/app.ts` 原先在批量已读/删除里 `catch { /* 忽略 */ }`，界面却固定弹「已将全部通知标为已读」；后端跳过「群发给自己的那条」时也会弹「已删除」。现改为错误上抛 + 交由组件提示，并从 UI 上隐藏不可删条目的删除按钮。
 11. 后端枚举校验收紧的连带影响：通知列表的 `type` / `is_read` 越界由「静默恒空」改为返回 `1`，前端在 api 层加了运行期防御（非法值不传参），避免把参数错误直接抛给用户。
+
+12. 递归组件验证不能只看类型检查与构建：`vue-tsc` / `vite build` 都**不会**因为「模板里用了未解析的组件」而报错（只在运行期打印 warn 并渲染空白），所以自引用递归必须真跑一次。第一次用 `@vue/server-renderer` 做 SSR 冒烟时反而踩坑 —— `inlineTemplate + ssr:true` 会生成 `ssrRender`，其中的 `_resolveComponent("CommentItem", true)` 抛 `resolveComponent can only be used in render() or setup()`，子层渲染不出来（**SSR 编译产物与本项目实际走的客户端路径不是同一套代码**）。改用「自建内存渲染器 + 客户端 inlineTemplate 编译产物」后一次通过：`setup()` 返回的 render 函数在 `currentRenderingInstance` 上下文里执行，`resolveComponent` 的 `maybeSelfReference` 才会回落到实例自身。结论：SFC 自引用在**客户端**路径可用，验证时要选对编译模式。
+
+13. 树形渲染必须防脏数据：`parent_id` 由客户端提交、id 由数据库分配，理论上存在「指向自身 / 互相指向」的脏数据（例如猜到下一个 id 再提交）。递归组件若不做处理会**递归到浏览器卡死**（前端没有任何报错，只是页面无响应）。因此在子级过滤里剔除 `c.id !== comment.id` 并加 `MAX_DEPTH = 6` 上限，冒烟测试里专门造了一条 `parentId` 指向自身的评论验证不会卡住。
 
 ## 8. 验证方式
 
@@ -369,3 +376,14 @@ npm run dev
 104. 打开一个**有 1~3 条评论**的物品：评论**不重复**（旧后端行为会重复几十次）；**根评论不应缩进**（验证 `parent_id=0` 判根），只有回复才缩进。
 105. 发一条评论 → 输入框清空、提示「评论已发布」、列表立即出现；点某条评论的「回复」→ 顶部出现「正在回复 @用户#id」，发送后回复缩进显示；点「取消」退出回复态。
 106. 连续打开**不同物品**的详情 → 评论区**不串号**（只显示当前物品的评论）；关掉再打开同一物品也正常加载。
+
+**评论楼层树 + QQ 群号复制（本轮）回归**
+
+107. 账号设置 → 绑定 QQ：原来的「加入 QQ 群」超链接应换成「**QQ（1056181967）｜复制**」按钮；点按钮的**任意位置**都弹出「群号已复制：1056181967」，且按钮内文案约 2 秒内变为「已复制」再自动恢复。
+108. 复制能力回归：http + IP（非安全上下文）下也应成功（走 `execCommand` 降级）；Tab 聚焦该按钮后按 Enter / Space 同样能复制（原生 button）。
+109. 打开一个有 2 个以上回复的物品详情：评论应从 **#1 开始按楼层升序**排列（不再是最新在前），子回复**默认折叠**，有子回复的楼层显示「N 个回复 ⌄」。
+110. 点「N 个回复」→ 子回复缩进显示、左侧有竖线、按钮变绿并显示 ⌃；再点一次收起（按钮恢复 ⌄）。
+111. 子回复底部应有「↓ 跳到回复」（父楼层没有这个按钮）；点它 → 页面平滑滚到它**直接回复的那条评论**并闪一下绿底约 1.6s；子回复顶部显示「回复 @用户#id」。
+112. 点某条评论的「回复」→ 输入框自动回到视野内、顶部出现「正在回复 @X」→ 发送成功后该楼层**自动展开**且新回复立刻可见。
+113. 多层嵌套（如 1 楼 → 子 → 孙）：每一层都长一样、都可继续回复、都有各自的「N 个回复」与「跳到回复」；展开 1 楼后再展开子层，孙层显示为第三级缩进。
+114. 用「相似帖子」切换物品或关掉弹窗重开 → 展开状态与高亮**全部重置**，评论只属于当前物品。

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useAppStore, isActiveStatus, type Item } from '../stores/app'
+import { useAppStore, isActiveStatus, type Comment, type Item } from '../stores/app'
 import { renderMarkdown } from '../utils/markdown'
+import CommentItem from './CommentItem.vue'
 import SimilarItems from './SimilarItems.vue'
 
 const props = defineProps<{ item: Item | null, visible: boolean }>()
@@ -17,13 +18,53 @@ const dialogVisible = computed({
 })
 const canClaim = computed(() => !!props.item && isActiveStatus(props.item.status))
 
-// —— 评论区 ——
+// —— 评论区（楼层树）——
 // 评论列表由 store 统一持有（按 itemId 过滤），App.vue 打开详情时已拉取一次；
-// 这里再 watch 一次物品 id，保证「相似帖子」切换物品、或从别处重新打开时也会刷新
+// 这里再 watch 一次物品 id，保证「相似帖子」切换物品、或从别处重新打开时也会刷新。
+// 楼层排序：统一按 **id 升序**（1 楼最早 → 依次往后），后端返回的倒序在这里纠正；
+// 树形结构由 CommentItem 按 parentId 递归组装，展开状态放这里统一持有，
+// 便于「回复某人后自动展开该楼层」与「切换物品时重置交互态」。
 const commentText = ref('')
 const replyTarget = ref<{ id: number; author: string } | null>(null)
-const comments = computed(() => (props.item ? store.comments.filter((c) => c.itemId === props.item?.id) : []))
-watch(() => props.item?.id, (id) => { if (id) store.fetchComments(id) })
+const expandedIds = ref<number[]>([])
+const highlightId = ref<number | null>(null)
+let highlightTimer: number | undefined
+
+const comments = computed(() => {
+  const item = props.item
+  if (!item) return []
+  return store.comments.filter((c) => c.itemId === item.id).sort((a, b) => a.id - b.id)
+})
+// 顶层楼层：没有父级的就是根评论（根评论之间同样按楼层升序）
+const rootComments = computed(() => comments.value.filter((c) => !c.parentId))
+
+watch(() => props.item?.id, (id) => {
+  replyTarget.value = null
+  expandedIds.value = []
+  highlightId.value = null
+  if (id) store.fetchComments(id)
+})
+
+// 展开 / 收起某个楼层的回复
+function toggleReplies(id: number) {
+  expandedIds.value = expandedIds.value.includes(id)
+    ? expandedIds.value.filter((item) => item !== id)
+    : [...expandedIds.value, id]
+}
+// 点某条评论的「回复」：记录回复目标并回到输入框（已在视口内则不动）
+function startReply(comment: Comment) {
+  replyTarget.value = { id: comment.id, author: comment.author }
+  requestAnimationFrame(() => document.querySelector('.comment-composer')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }))
+}
+// 子楼层的「↓ 跳到回复」：滚到它直接回复的那条评论，并高亮闪一下
+function jumpToComment(id: number) {
+  const el = document.getElementById(`comment-${id}`)
+  if (!el) return
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  highlightId.value = id
+  window.clearTimeout(highlightTimer)
+  highlightTimer = window.setTimeout(() => { highlightId.value = null }, 1600)
+}
 
 async function sendComment() {
   if (!props.item) return
@@ -32,10 +73,13 @@ async function sendComment() {
     ElMessage.warning('请输入评论内容')
     return
   }
+  const parentId = replyTarget.value?.id
   try {
-    await store.addComment({ itemId: props.item.id, content, parentId: replyTarget.value?.id })
+    await store.addComment({ itemId: props.item.id, content, parentId })
     commentText.value = ''
     replyTarget.value = null
+    // 回复的是有子级的楼层时自动展开，保证刚发出的回复立刻可见
+    if (parentId && !expandedIds.value.includes(parentId)) expandedIds.value = [...expandedIds.value, parentId]
     ElMessage.success('评论已发布')
   } catch (e) {
     ElMessage.error((e as Error).message || '评论发布失败，请稍后重试')
@@ -91,15 +135,7 @@ function openSimilar(id: number) { emit('openItem', id) }
             <button type="button" class="send-comment" aria-label="发送评论" :disabled="!commentText.trim()" @click="sendComment">➤</button>
           </div>
           <div class="comment-list">
-            <article v-for="comment in comments" :key="comment.id" class="comment-item" :class="{ 'comment-reply': comment.parentId }">
-              <div class="comment-avatar">{{ comment.avatar }}</div>
-              <div class="comment-body">
-                <div class="comment-meta"><strong>{{ comment.author }}</strong><time>{{ comment.date }}</time></div>
-                <p v-if="comment.replyTo" class="reply-label">回复 @{{ comment.replyTo }}</p>
-                <p class="comment-text">{{ comment.content }}</p>
-                <div class="comment-actions"><button type="button" @click="replyTarget = { id: comment.id, author: comment.author }">回复</button></div>
-              </div>
-            </article>
+            <CommentItem v-for="comment in rootComments" :key="comment.id" :comment="comment" :all="comments" :expanded-ids="expandedIds" :highlight-id="highlightId" @reply="startReply" @toggle="toggleReplies" @jump="jumpToComment" />
             <el-empty v-if="!comments.length" description="还没有评论，来留下第一条吧" :image-size="70" />
           </div>
         </section>
