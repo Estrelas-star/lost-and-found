@@ -235,7 +235,9 @@ function trustLine() {
 // 把「标签 / 地点」附加信息拼进描述：保留用户原句，附加项放进括号，便于后端抽取
 function buildBody(raw: string, action: AgentAction): string {
   const base = raw.trim()
-  if (action !== 'auto') return base           // 确认 / 取消是显式动作，不拼接附加信息
+  // 显式动作（确认 / 取消）不依赖输入框：后端 text 必填，未输入内容时用固定文案兜底，
+  // 这样点「确认发布 / 取消」按钮就能直接生效，不需要用户再补一句话
+  if (action !== 'auto') return base || (action === 'confirm' ? '确认' : '取消')
   const extras: string[] = []
   if (locationLabel.value) extras.push(`地点：${locationLabel.value}`)
   if (selectedTags.value.length) extras.push(`特征：${selectedTags.value.join('、')}`)

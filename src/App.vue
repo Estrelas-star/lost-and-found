@@ -180,6 +180,17 @@ async function openItemById(id: number) {
   }
 }
 
+// 详情弹窗内认领 / 撤销后：按服务端最新数据就地刷新弹窗 + 列表（列表已由 store 重新拉取）
+async function refreshItemById(id: number) {
+  // store 里的 fetchItems() 不带筛选参数，会把首页列表重置成默认视图，这里按当前筛选条件再拉一次
+  if (store.activeRoute === 'home') applyHomeFilters()
+  else if (store.activeRoute === 'claims') store.fetchItems()
+  try {
+    const res = await getItem(id)
+    if (res?.data) selectedItem.value = store.mapToFront(res.data)
+  } catch { /* 忽略：列表已刷新，弹窗保持原内容 */ }
+}
+
 function closeDetailDialog() {
   detailDialogVisible.value = false
   selectedItem.value = null
@@ -346,7 +357,7 @@ async function closeMyItem(item: Item) {
         <section v-else-if="store.activeRoute === 'help'" class="page-section"><HelpCenter /></section>
       </div>
     </main>
-    <DetailDialog :item="selectedItem" :visible="detailDialogVisible" @close="closeDetailDialog" @open-item="openItemById" />
+    <DetailDialog :item="selectedItem" :visible="detailDialogVisible" @close="closeDetailDialog" @open-item="openItemById" @refresh="refreshItemById" />
     <EditItemDialog :item="editingItem" :visible="editDialogVisible" @close="closeEditDialog" @saved="closeEditDialog" />
     <UserSettingsDialog :visible="settingsVisible" @close="settingsVisible = false" />
     <div v-if="notice" class="toast">✓ {{ notice }}</div>

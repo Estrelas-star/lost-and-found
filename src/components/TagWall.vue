@@ -97,7 +97,8 @@ function clearAll() {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 32px;
+  /* 固定 32px：与首页筛选栏的 el-input / el-radio-button 等高（选中多个标签时高度也不变） */
+  height: 32px;
   padding: 4px 10px;
   border: 1px solid #dcdfe6;
   border-radius: 8px;
@@ -117,12 +118,16 @@ function clearAll() {
 /* 已选标签：浅色容器 + 小圆「×」，直接显示在触发栏内（点 × 只移除这一个） */
 .tw-tags {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
   flex: 1 1 auto;
   min-width: 0;
+  overflow-x: auto;      /* 标签过多时横向滚动，不把整个框撑高（保持与其它控件等高） */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
+.tw-tags::-webkit-scrollbar { display: none; }
 .tw-tag {
   display: inline-flex;
   align-items: center;
