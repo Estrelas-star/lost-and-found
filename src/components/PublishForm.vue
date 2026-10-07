@@ -186,13 +186,18 @@ async function submitPost() {
         </el-col>
       </el-row>
 
-      <el-form-item label="丢失 / 拾取地点" :error="errors.location" required>
-        <LocationSelector ref="locationSelectorRef" v-model="form.location" v-model:location-id="form.locationId" />
-      </el-form-item>
-
-      <el-form-item label="详细地点信息">
-        <el-input v-model="form.locationDetail" placeholder="选完地点后可补充更细描述，如：靠窗自习室 / 桥头左侧（可选）" />
-      </el-form-item>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="丢失 / 拾取地点" :error="errors.location" required>
+            <LocationSelector ref="locationSelectorRef" v-model="form.location" v-model:location-id="form.locationId" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="详细地点信息">
+            <el-input v-model="form.locationDetail" placeholder="选完地点后可补充更细描述，如：靠窗自习室 / 桥头左侧（可选）" />
+          </el-form-item>
+        </el-col>
+      </el-row>
 
       <el-row>
         <el-col :span="24"><el-form-item label="详细描述" :error="errors.desc" required><div class="desc-dropzone" :class="{ 'drag-over': descDragOver }" @dragover.prevent="descDragOver = true" @dragleave.prevent="descDragOver = false" @drop="onDescDrop">
@@ -221,7 +226,7 @@ async function submitPost() {
 <style scoped>
 .publish-page{max-width:var(--page-max);margin:0 auto}.publish-intro{margin-bottom:24px}.publish-intro h1{margin:12px 0 8px;font-size:32px}.publish-intro p{margin:0;color:var(--muted)}.publish-form{padding:26px;background:#fff;border:1px solid var(--line);border-radius:14px}.publish-control,.publish-form .el-input,.publish-form .el-textarea,.publish-form .el-radio-group{width:100%}.publish-type{display:flex}.publish-type .el-radio-button{flex:1}.publish-type :deep(.el-radio-button__inner){width:100%}.publish-type :deep(.el-radio-button__inner:hover){color:var(--el-color-primary)}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner){background-color:var(--el-color-primary);border-color:var(--el-color-primary);box-shadow:-1px 0 0 0 var(--el-color-primary);color:#fff}.publish-type :deep(.el-radio-button.is-active .el-radio-button__inner:hover){background-color:var(--el-color-primary-dark-2);border-color:var(--el-color-primary-dark-2);box-shadow:-1px 0 0 0 var(--el-color-primary-dark-2);color:#fff}.publish-form :deep(.el-textarea){width:100%}.publish-form :deep(.el-textarea__inner){width:100%}.publish-submit{width:100%;margin-top:8px}.desc-dropzone{padding:4px;border-radius:8px;transition:outline .15s;width:100%;box-sizing:border-box}.desc-dropzone.drag-over{outline:2px dashed var(--green);background:#f0f8f3}@media(max-width:700px){.publish-page{width:100%}.publish-form{padding:18px}.publish-form :deep(.el-col){max-width:100%;flex:0 0 100%}}
 .publish-intro-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.ai-write-btn{display:inline-flex;align-items:center;gap:6px;padding:0 16px;height:38px;border:0;border-radius:10px;background:linear-gradient(135deg,var(--green) 0%,var(--green-dark) 100%);color:#fff;font-size:13px;font-weight:700;white-space:nowrap;box-shadow:0 6px 14px #42b9833d;transition:box-shadow var(--dur) var(--ease),transform var(--dur) var(--ease)}
+.ai-write-btn{display:inline-flex;align-items:center;gap:6px;margin-left:auto;padding:0 16px;height:38px;border:0;border-radius:10px;background:linear-gradient(135deg,var(--green) 0%,var(--green-dark) 100%);color:#fff;font-size:13px;font-weight:700;white-space:nowrap;box-shadow:0 6px 14px #42b9833d;transition:box-shadow var(--dur) var(--ease),transform var(--dur) var(--ease)}
 .ai-write-btn:hover{box-shadow:0 9px 20px #42b98359;transform:translateY(-1px)}
 .publish-type-row{display:flex;align-items:center;gap:12px;width:100%}
 .publish-type-row .publish-type{flex:0 1 300px;min-width:0}

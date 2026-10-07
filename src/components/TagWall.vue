@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 const props = defineProps<{
   modelValue: string[]
@@ -9,7 +10,22 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ 'update:modelValue': [string[]] }>()
 
+const route = useRoute()
 const open = ref(false)
+// 弹层内的前端搜索关键字（仅过滤展示，不影响已选）
+const keyword = ref('')
+const filteredOptions = computed(() => {
+  const k = keyword.value.trim().toLowerCase()
+  if (!k) return props.options
+  return props.options.filter((o) => o.toLowerCase().includes(k))
+})
+// 展开时清空关键字：每次打开都是一次新的搜索
+function toggleOpen() {
+  open.value = !open.value
+  if (open.value) keyword.value = ''
+}
+// 切页自动关闭：发布页外层有 <KeepAlive>、组件不会销毁，否则弹层会一直挂在 body 上
+watch(() => route.fullPath, () => { open.value = false })
 
 // 仅当传入侧栏宽度时，把遮罩/面板限制在右侧工作台区域，不盖住左侧栏
 const backdropStyle = computed(() =>
@@ -24,6 +40,10 @@ function toggle(v: string) {
   else set.add(v)
   emit('update:modelValue', [...set])
 }
+// 单个已选标签的「×」：只移除这一个
+function remove(v: string) {
+  emit('update:modelValue', props.modelValue.filter((item) => item !== v))
+}
 function clearAll() {
   emit('update:modelValue', [])
 }
@@ -31,8 +51,10 @@ function clearAll() {
 
 <template>
   <div class="tag-wall">
-    <button type="button" class="tw-trigger" @click="open = !open">
-      <span v-if="modelValue.length" class="tw-sel">{{ modelValue.length }} 项已选</span>
+    <button type="button" class="tw-trigger" @click="toggleOpen">
+      <span v-if="modelValue.length" class="tw-tags">
+        <span v-for="v in modelValue" :key="v" class="tw-tag">{{ v }}<span class="tw-tag-x" title="移除" @click.stop="remove(v)">×</span></span>
+      </span>
       <span v-else class="tw-ph">请选择{{ label }}</span>
       <span class="tw-arrow">▾</span>
     </button>
@@ -47,15 +69,19 @@ function clearAll() {
               <button type="button" class="tw-close" @click="open = false" aria-label="关闭">×</button>
             </div>
           </div>
+          <div class="tw-search">
+            <el-input v-model="keyword" :placeholder="`搜索${label}`" clearable />
+          </div>
           <div class="tw-grid">
             <button
-              v-for="opt in options"
+              v-for="opt in filteredOptions"
               :key="opt"
               type="button"
               class="tw-chip"
               :class="{ active: modelValue.includes(opt) }"
               @click="toggle(opt)"
             >{{ opt }}</button>
+            <div v-if="!filteredOptions.length" class="tw-empty">没有匹配的{{ label }}</div>
           </div>
         </div>
       </div>
@@ -71,20 +97,60 @@ function clearAll() {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 32px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 4px 10px;
   border: 1px solid #dcdfe6;
   border-radius: 8px;
   background: #fff;
   color: #303133;
   font-size: 13px;
+  text-align: left;
   cursor: pointer;
   box-sizing: border-box;
+  transition: border-color 0.15s ease;
 }
 .tw-trigger:hover { border-color: #42b983; }
-.tw-ph { color: #a8abb2; }
-.tw-sel { color: #42b983; font-weight: 500; }
-.tw-arrow { color: #909399; font-size: 12px; }
+.tw-trigger:focus-visible { outline: 2px solid #7bcda4; outline-offset: 2px; }
+.tw-ph { color: #a8abb2; flex: 1 1 auto; }
+.tw-arrow { color: #909399; font-size: 12px; flex: 0 0 auto; align-self: center; }
+
+/* 已选标签：浅色容器 + 小圆「×」，直接显示在触发栏内（点 × 只移除这一个） */
+.tw-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tw-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 1px 5px 1px 8px;
+  border: 1px solid #cfe7dc;
+  border-radius: 999px;
+  background: #eff8f3;
+  color: #369976;
+  font-size: 12px;
+  line-height: 18px;
+}
+.tw-tag-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  color: #369976;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.tw-tag-x:hover { background: #42b983; color: #fff; }
 
 .tw-backdrop {
   position: fixed;
@@ -131,6 +197,21 @@ function clearAll() {
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
+}
+/* 前端搜索过滤：宽屏占弹层宽度 50%（40%~60% 区间内），窄屏铺满 */
+.tw-search {
+  width: 100%;
+  margin-bottom: 12px;
+}
+@media (min-width: 900px) {
+  .tw-search { width: 50%; }
+}
+.tw-empty {
+  grid-column: 1 / -1;
+  padding: 18px 0;
+  color: #a8abb2;
+  font-size: 13px;
+  text-align: center;
 }
 .tw-grid {
   display: grid;

@@ -1014,12 +1014,13 @@ button {
   margin: auto;
 }
 
-.welcome-row,
-.section-head {
+.welcome-row {
   display: flex;
   justify-content: space-between;
   align-items: end;
   gap: 20px;
+  /* 首页小节标题已移除：用下边距维持与筛选卡片之间的留白节奏 */
+  margin-bottom: 22px;
 }
 
 .eyebrow {
@@ -1037,8 +1038,7 @@ button {
 }
 
 .welcome-row p,
-.section-intro p,
-.section-head p {
+.section-intro p {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
@@ -1111,12 +1111,6 @@ button {
   color: #b6a776;
 }
 
-.section-head {
-  align-items: center;
-  margin-bottom: 21px;
-}
-
-.section-head h2,
 .panel-head h2 {
   font-size: 18px;
   margin: 0 0 4px;
@@ -1734,8 +1728,7 @@ button {
   .page-wrap {
     padding: 30px 18px 60px;
   }
-  .welcome-row,
-  .section-head {
+  .welcome-row {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -1912,12 +1905,6 @@ button {
   cursor: pointer;
 }
 
-.home-count {
-  color: var(--green);
-  font-weight: 600;
-  margin-top: 4px;
-}
-
 .avatar img {
   width: 100%;
   height: 100%;
@@ -2001,7 +1988,9 @@ button {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 9px 18px 9px 40px;
+  /* 与同排的三个筛选控件（默认 32px）等高 */
+  height: 32px;
+  padding: 0 18px 0 40px;
   border: 1.5px solid #cfe3da;
   border-radius: 10px;
   background: #f4faf7;
@@ -2158,7 +2147,8 @@ button {
   font-weight: 600;
   font-size: 14px;
   line-height: 1.4;
-  padding-bottom: 8px;
+  /* 标签稍往右下：与输入框贴得更紧，整栏更紧凑 */
+  padding: 0 0 4px 8px;
   display: block;
   white-space: nowrap;
 }
@@ -2178,19 +2168,67 @@ button {
   width: 100%;
 }
 
-.filter-form-actions {
+/* 类型 / 分类 / 地点 三段等宽并排，重置筛选贴在同一行右侧、与三者等高 */
+.filter-row {
   display: flex;
-  justify-content: flex-end;
-  padding: 4px 0 12px;
+  align-items: flex-end;
+  gap: 16px;
 }
 
-.filter-form-actions .filter-reset {
-  align-self: center;
+.filter-row .filter-col {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* el-form-item 自带 18px margin-bottom，重置按钮补同值才能与控件底部对齐 */
+.filter-row .filter-reset {
+  flex: 0 0 auto;
+  align-self: flex-end;
+  margin-bottom: 18px;
+}
+
+/* 类型：一行按钮（参照发布页「信息类型」的按钮组样式） */
+.filter-type {
+  display: flex;
+  width: 100%;
+}
+
+.filter-type .el-radio-button {
+  flex: 1;
+}
+
+.filter-type .el-radio-button__inner {
+  width: 100%;
+}
+
+.filter-type .el-radio-button__inner:hover {
+  color: var(--el-color-primary);
+}
+
+.filter-type .el-radio-button.is-active .el-radio-button__inner {
+  background-color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+  box-shadow: -1px 0 0 0 var(--el-color-primary);
+  color: #fff;
+}
+
+.filter-type .el-radio-button.is-active .el-radio-button__inner:hover {
+  background-color: var(--el-color-primary-dark-2);
+  border-color: var(--el-color-primary-dark-2);
+  box-shadow: -1px 0 0 0 var(--el-color-primary-dark-2);
+  color: #fff;
 }
 
 @media(max-width:700px) {
   .filter-form {
     padding: 14px 14px 4px;
+  }
+  .filter-row {
+    flex-wrap: wrap;
+  }
+  .filter-row .filter-col,
+  .filter-row .filter-reset {
+    flex: 1 1 100%;
   }
 }
 
@@ -2247,7 +2285,12 @@ button {
 
 .smart-match-btn {
   flex: 0 0 auto;
-  padding: 8px 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 与左侧搜索框等高对齐 */
+  height: 32px;
+  padding: 0 15px;
   border: 1px solid var(--green);
   border-radius: 8px;
   background: #f2faf6;
@@ -2269,7 +2312,6 @@ button {
   }
   .smart-match-btn {
     width: 100%;
-    text-align: center;
   }
 }
 

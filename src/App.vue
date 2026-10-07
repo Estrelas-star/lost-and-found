@@ -276,37 +276,32 @@ async function closeMyItem(item: Item) {
           <PublishForm v-if="store.activeRoute === 'publish'" />
         </KeepAlive>
         <section v-if="store.activeRoute === 'home'" class="page-section">
-          <div class="welcome-row"><div><span class="eyebrow">{{ todayLabel }}</span><h1>你好，{{ store.currentUser.name }} <span class="wave">✦</span></h1><p>今天也帮一件物品找到回家的路吧。</p></div><button class="primary-btn" @click="go('publish')">＋ 发布信息</button></div>
+          <div class="welcome-row"><div><span class="eyebrow">{{ todayLabel }}</span><h1>你好，{{ store.currentUser.name }} <span class="wave">✦</span></h1><p>{{ store.itemCount }} 件物品正在被认真寻找，今天也帮一件物品找到回家的路吧。</p></div><button class="primary-btn" @click="go('publish')">＋ 发布信息</button></div>
           <div v-if="store.homeNotice" class="notice-strip"><span class="notice-icon">✦</span><div style="cursor:pointer" @click="openHomeNotice"><strong>{{ store.homeNotice.title }}</strong><small>{{ noticeDate(store.homeNotice) }} · 查看详情 →</small></div><button title="不在首页显示（可在顶部「公告栏」回看）" @click="dismissHomeNotice">×</button></div>
-          <div class="section-head"><div><h2>校园里的物品</h2><p>实时更新，共 {{ store.remoteTotal }} 条信息</p><p class="home-count">{{ store.itemCount }} 件物品正在被认真寻找</p></div></div>
 
           <el-form class="filter-form" label-position="top" @submit.prevent>
-            <el-row :gutter="16">
-              <el-col :span="24">
-                <el-form-item label="搜索">
-                  <div class="home-search-row">
-                    <el-input v-model="search" placeholder="搜索物品、地点、关键词" clearable />
-                    <button type="button" class="smart-match-btn" title="描述物品，让助手帮你找匹配的帖子" @click="goSmartMatch">✦ 智能匹配</button>
-                  </div>
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <el-row :gutter="16">
-              <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="搜索">
+              <div class="home-search-row">
+                <el-input v-model="search" placeholder="搜索物品、地点、关键词" clearable />
+                <button type="button" class="smart-match-btn" title="描述物品，让助手帮你找匹配的帖子" @click="goSmartMatch">✦ 智能匹配</button>
+              </div>
+            </el-form-item>
+            <div class="filter-row">
+              <div class="filter-col">
                 <el-form-item label="类型">
-                  <el-select v-model="filter" filterable placeholder="全部" class="filter-select">
-                    <el-option label="全部" value="全部" />
-                    <el-option label="寻物" value="lost" />
-                    <el-option label="招领" value="found" />
-                  </el-select>
+                  <el-radio-group v-model="filter" class="filter-type">
+                    <el-radio-button value="全部">全部</el-radio-button>
+                    <el-radio-button value="lost">寻物</el-radio-button>
+                    <el-radio-button value="found">招领</el-radio-button>
+                  </el-radio-group>
                 </el-form-item>
-              </el-col>
-              <el-col :xs="24" :sm="12" :md="8">
+              </div>
+              <div class="filter-col">
                 <el-form-item label="分类">
                   <TagWall v-model="selectedCategories" :options="store.tags.map(t => t.name)" label="分类" :sidebar-width="246" />
                 </el-form-item>
-              </el-col>
-              <el-col :xs="24" :sm="12" :md="8">
+              </div>
+              <div class="filter-col">
                 <el-form-item label="地点">
                   <el-cascader v-if="usingRealLocations" v-model="locationPath" :options="locationCascaderOptions" :props="{ expandTrigger: 'hover' }" placeholder="全部地点" clearable filterable class="filter-cascader" />
                   <el-select v-else v-model="locationFilter" filterable placeholder="全部">
@@ -314,9 +309,7 @@ async function closeMyItem(item: Item) {
                     <el-option v-for="location in locationOptions.filter((item) => item !== '全部')" :key="location" :label="location" :value="location" />
                   </el-select>
                 </el-form-item>
-              </el-col>
-            </el-row>
-            <div class="filter-form-actions">
+              </div>
               <button class="filter-reset" @click="resetHomeFilters">重置筛选</button>
             </div>
           </el-form>
