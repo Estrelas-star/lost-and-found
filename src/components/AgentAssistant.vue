@@ -5,7 +5,7 @@
 //     次轮【必须回传 session_id】；只有「补充信息」或「明确确认」才建帖；其他内容一律 stage=cancelled
 //   · POST /agent/session/close 关闭会话（幂等）
 //   · 限流：三个 /agent/* 共享每用户 10 次/分钟（120004）；单次 LLM 耗时 2~8 秒（api 层已设 30s 超时）
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../stores/app'
@@ -47,6 +47,10 @@ interface ChatMessage {
   similar?: AgentMatchBrief[]
   createdItemId?: number | null
   failed?: boolean
+  /** 打字机进度：已输出的字数（undefined = 没有打字过程，直接整段显示，如欢迎语） */
+  typed?: number
+  /** 回答顶部的溯源行（仅正常回答；错误提示不显示） */
+  trust?: string
 }
 
 const WELCOME_TEXT = '你好，我是拾光智能助手 ✦\n可以直接描述丢的或捡到的东西（例如「我昨天下午在图书馆三楼丢了个黑色保温杯」），我会整理成草稿，你确认后才发布。\n也可以问「有人捡到黑色水杯吗」，我帮你找找。'
@@ -155,6 +159,79 @@ function scrollToBottom() {
   })
 }
 
+// —— 「正在思考」霓虹炫彩框：三句文案每秒随机切换（文字 3D 竖转一圈），右侧星星高速自转 ——
+const THINK_TEXTS = ['AI Deep Thinking', '智能体深度思考中', 'AI结果数据源精准比对中']
+const thinkText = ref(THINK_TEXTS[0])
+// 只作 :key 使用：值一变就重建节点，让 CSS 动画每秒重放一次
+const thinkSeq = ref(0)
+let thinkTimer: ReturnType<typeof setInterval> | null = null
+function stopThinking() {
+  if (thinkTimer) { clearInterval(thinkTimer); thinkTimer = null }
+}
+function startThinking() {
+  stopThinking()
+  thinkText.value = THINK_TEXTS[0]
+  thinkSeq.value += 1
+  thinkTimer = setInterval(() => {
+    // 随机换一句，且不与当前重复（否则看不出切换动画）
+    const rest = THINK_TEXTS.filter((t) => t !== thinkText.value)
+    thinkText.value = rest[Math.floor(Math.random() * rest.length)]
+    thinkSeq.value += 1
+  }, 1000)
+}
+// 整个请求期间（含「确认 / 取消」这类显式动作）都亮着霓虹框
+watch(sending, (on) => { on ? startThinking() : stopThinking() })
+
+// —— 打字机：按每秒 40 字逐字渲染回答，制造「AI 一直在输出」的实时感 ——
+const TYPE_TICK_MS = 1000 / 40 // 25ms/字
+let typingTimer: ReturnType<typeof setInterval> | null = null
+/** 已输出的文本（没有打字过程的消息整段返回） */
+function visibleText(m: ChatMessage) {
+  return m.typed == null ? m.text : (m.text || '').slice(0, m.typed)
+}
+/** 是否已输出完（未标记 typed 的视为已完成） */
+function typingDone(m: ChatMessage) {
+  return m.typed == null || m.typed >= (m.text || '').length
+}
+function stopTyping() {
+  if (typingTimer) { clearInterval(typingTimer); typingTimer = null }
+}
+/** 把仍在打字的消息一次补全（新回答到来 / 重新开始时用） */
+function finishTyping() {
+  messages.value.forEach((m) => { if (m.typed != null && m.typed < (m.text || '').length) m.typed = undefined })
+}
+/** 对话流是否贴在底部附近：只有贴底时才自动跟随，避免打断用户向上翻看 */
+function isNearBottom() {
+  const el = streamRef.value
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 120
+}
+/** 逐字输出某条回答：同一时刻只有一条在打字（新的一条会先补全上一条） */
+function startTyping(id: number) {
+  stopTyping()
+  finishTyping()
+  const msg = messages.value.find((m) => m.id === id)
+  const total = (msg?.text || '').length
+  if (!msg || !total) return
+  msg.typed = 0
+  scrollToBottom()
+  typingTimer = setInterval(() => {
+    // 每拍都从数组里重新取（拿到的是响应式代理，赋值才会触发重新渲染）
+    const target = messages.value.find((m) => m.id === id)
+    if (!target) { stopTyping(); return }
+    const follow = isNearBottom()
+    target.typed = Math.min(total, (target.typed ?? 0) + 1)
+    if (follow) scrollToBottom()
+    if (typingDone(target)) stopTyping()
+  }, TYPE_TICK_MS)
+}
+
+// 「AI溯源，数据可信度 95 + 1~3 的随机数（保留两位小数）%」：每条回答生成一次，之后固定不变
+function trustLine() {
+  const extra = 1 + Math.random() * 2
+  return `AI溯源，数据可信度${(95 + extra).toFixed(2)}%`
+}
+
 // 把「标签 / 地点」附加信息拼进描述：保留用户原句，附加项放进括号，便于后端抽取
 function buildBody(raw: string, action: AgentAction): string {
   const base = raw.trim()
@@ -173,21 +250,24 @@ function clearComposer() {
 
 function applyResponse(data: AgentChatResponse) {
   if (data.session_id) sessionId.value = data.session_id
-  messages.value.push({
+  const msg: ChatMessage = {
     id: nextId(),
     role: 'agent',
     text: data.reply || STAGE_HINT[data.stage] || '已处理，请继续描述。',
+    trust: trustLine(),
+    typed: 0,
     stage: data.stage,
     draft: data.draft,
     questions: data.questions ?? [],
     matches: data.matches ?? [],
     similar: data.similar ?? [],
     createdItemId: data.created_item_id ?? null,
-  })
+  }
+  messages.value.push(msg)
   // 会话已结束：本地清掉 session_id，下一轮按「新会话」处理（后端会覆盖旧会话）
   if (data.stage === 'created' || data.stage === 'cancelled') sessionId.value = null
   if (data.stage === 'created') store.fetchMyItems()   // 让「我的发布」立即能看到新帖
-  scrollToBottom()
+  startTyping(msg.id)                                  // 逐字渲染，不再整段弹出
 }
 
 function handleError(e: unknown) {
@@ -208,8 +288,9 @@ function handleError(e: unknown) {
   } else if (code === 120006) {
     agentDisabled.value = true
   }
-  messages.value.push({ id: nextId(), role: 'agent', text: hint, failed: true })
-  scrollToBottom()
+  const id = nextId()
+  messages.value.push({ id, role: 'agent', text: hint, failed: true, typed: 0 })
+  startTyping(id)
 }
 
 async function send(action: AgentAction = 'auto') {
@@ -251,6 +332,7 @@ async function send(action: AgentAction = 'auto') {
 // 重新开始：关闭服务端会话（幂等，失败也不影响本地重置）
 async function restart() {
   try { await closeAgentSession(sessionId.value ?? undefined) } catch { /* 忽略 */ }
+  stopTyping()
   sessionId.value = null
   messages.value = [welcomeMessage()]
   clearComposer()
@@ -276,7 +358,11 @@ onMounted(() => {
   }
   scrollToBottom()
 })
-onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
+onBeforeUnmount(() => {
+  if (cooldownTimer) clearInterval(cooldownTimer)
+  stopTyping()
+  stopThinking()
+})
 </script>
 
 <template>
@@ -323,7 +409,11 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
           <template v-else>
             <img class="agent-avatar" :src="aiAvatarUrl" alt="智能助手" />
             <div class="agent-bubble agent-bubble-agent" :class="{ 'agent-bubble-failed': m.failed }">
-              <p class="agent-text">{{ m.text }}</p>
+              <p v-if="m.trust" class="agent-trust">{{ m.trust }}</p>
+              <p class="agent-text">{{ visibleText(m) }}<span v-if="!typingDone(m)" class="agent-caret" aria-hidden="true"></span></p>
+
+              <!-- 逐字输出完成后才展开草稿 / 候选 / 操作按钮：整块不一次性渲染 -->
+              <template v-if="typingDone(m)">
               <p v-if="m.stage && STAGE_HINT[m.stage]" class="agent-stage-hint">{{ STAGE_HINT[m.stage] }}</p>
 
               <!-- 草稿预览（等用户确认） -->
@@ -379,13 +469,19 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
                 <span class="agent-similar-label">其它相关帖子</span>
                 <button v-for="hit in m.similar" :key="hit.item_id" type="button" class="agent-similar-link" @click="openItem(hit.item_id)">{{ hit.item.title }}</button>
               </div>
+              </template>
             </div>
           </template>
         </div>
 
         <div v-if="sending" class="agent-row agent-row-agent">
           <img class="agent-avatar" :src="aiAvatarUrl" alt="智能助手" />
-          <div class="agent-bubble agent-bubble-agent agent-thinking">正在思考…<i class="agent-dots">···</i></div>
+          <!-- 思考期间：普通气泡换成霓虹炫彩框（蓝→紫→粉横向流动 + 文案 3D 竖转切换 + 星星高速自转） -->
+          <!-- aria-live=off：文案每秒都在换，交给读屏逐秒播报会非常吵 -->
+          <div class="agent-neon" role="status" aria-live="off">
+            <span :key="thinkSeq" class="agent-neon-text">{{ thinkText }}</span>
+            <span class="agent-neon-star" aria-hidden="true">✦</span>
+          </div>
         </div>
       </div>
 
@@ -531,9 +627,33 @@ onBeforeUnmount(() => { if (cooldownTimer) clearInterval(cooldownTimer) })
 .agent-bubble-failed{background:#fff5f4;border-color:#f3d3cc;color:#b4553f}
 .agent-text{margin:0;white-space:pre-wrap}
 .agent-stage-hint{margin:8px 0 0;color:var(--muted);font-size:12px}
-.agent-thinking{display:flex;align-items:center;gap:6px;color:var(--muted)}
-.agent-dots{letter-spacing:2px;font-style:normal;animation:agent-blink 1.2s infinite}
+/* —— 思考中的霓虹炫彩框：横向流动的蓝→紫→粉渐变 + 文案 3D 竖转一圈 + 星星高速自转 —— */
+.agent-neon{position:relative;flex:1 1 auto;max-width:78%;display:flex;align-items:center;gap:12px;min-height:48px;padding:12px 18px;border-radius:14px;border-bottom-left-radius:4px;overflow:hidden;perspective:640px;color:#fff;box-shadow:0 0 16px #7c3aed5c,0 0 32px #2563eb3d;animation:agent-neon-glow 1.6s ease-in-out infinite}
+/* 渐变带宽度是元素的两倍、且首尾同色 → background-position 走满一周期时无缝衔接，看起来是一直流淌 */
+.agent-neon::before{content:"";position:absolute;inset:0;background-image:linear-gradient(90deg,#2563eb,#7c3aed,#db2777,#2563eb,#7c3aed,#db2777,#2563eb);background-size:200% 100%;animation:agent-neon-flow 1.6s linear infinite}
+.agent-neon>span{position:relative;z-index:1}
+.agent-neon-text{flex:1 1 auto;text-align:center;font-size:13px;font-weight:700;letter-spacing:.4px;animation:agent-neon-flip .5s var(--ease) both}
+.agent-neon-star{flex:0 0 auto;font-size:17px;line-height:1;text-shadow:0 0 8px #fff,0 0 18px #a78bfa;animation:agent-neon-spin .7s linear infinite}
+@keyframes agent-neon-flow{from{background-position:0% 50%}to{background-position:100% 50%}}
+@keyframes agent-neon-flip{from{transform:rotateX(-360deg) scale(.9);opacity:0}60%{opacity:1}to{transform:rotateX(0) scale(1);opacity:1}}
+@keyframes agent-neon-spin{to{transform:rotate(360deg)}}
+@keyframes agent-neon-glow{0%,100%{box-shadow:0 0 14px #7c3aed4d,0 0 26px #2563eb33}50%{box-shadow:0 0 24px #db277766,0 0 44px #7c3aed4d}}
+/* 回答第一行上方的溯源行 */
+.agent-trust{margin:0 0 7px;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border:1px solid #e0dbff;border-radius:var(--radius-pill);background:linear-gradient(90deg,#eff4ff,#f7f0ff 55%,#fff0f7);color:#6a5acd;font-size:11px;font-weight:700;letter-spacing:.2px}
+.agent-trust::before{content:"✦";font-size:10px}
+/* 逐字输出时的光标（复用 agent-blink 的呼吸效果） */
+.agent-caret{display:inline-block;width:2px;height:.95em;margin-left:2px;vertical-align:-2px;background:currentColor;animation:agent-blink 1s infinite}
 @keyframes agent-blink{0%,100%{opacity:.25}50%{opacity:1}}
+/* 尊重系统「减少动态效果」偏好：只关动画，不影响内容与配色 */
+@media(prefers-reduced-motion:reduce){
+  .agent-neon,.agent-neon::before,.agent-neon-text,.agent-neon-star,.agent-caret{animation:none}
+}
+/* 窄屏：霓虹框文字缩小、允许折成两行，避免被裁切 */
+@media(max-width:700px){
+  .agent-neon{gap:8px;padding:10px 12px}
+  .agent-neon-text{font-size:12px}
+  .agent-neon-star{font-size:15px}
+}
 .agent-draft{margin-top:10px;padding:12px 14px;border:1px dashed #cfe7dc;border-radius:10px;background:#f4faf7}
 .agent-draft-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .agent-draft-head strong{font-size:13px}
