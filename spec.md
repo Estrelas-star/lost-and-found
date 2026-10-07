@@ -13,7 +13,7 @@
 - **注册默认身份**：登录页【立即注册】与 `/register` 页开放普通学生注册，新注册用户默认 `role = 0`（无预置学生账号）。
 - 浏览校园失物和招领信息
 - 按关键词、物品类型、标签、地点和时间查找信息
-- 查看物品详情，提交认领 / 捡到提交
+- 查看物品详情，评论与楼中楼回复，提交认领 / 捡到提交
 - 发布丢失或捡到物品的信息（含图片、标签、层级地点）
 - 查看和管理自己的发布记录
 - 提交认领 / 捡到提交，并查看与撤销自己的认领
@@ -143,14 +143,23 @@ status 1（已认领）
 #### 视觉规格
 
 - 弹窗组件：`src/components/DetailDialog.vue`，基于 `el-dialog`，最大高度 85vh，内部滚动，圆角样式；
-- 结构自上而下：顶部标题栏（物品详情 + 关闭按钮）→ 图片画廊（轮播，无图时显示占位图标）→ 正文（类型/日期、标题、标签、Markdown 描述、地点/时间/发布人）→ 底部【申请认领 / 我捡到了】按钮（仅学生角色显示）；
+- 结构自上而下：顶部标题栏（物品详情 + 关闭按钮）→ 图片画廊（轮播，无图时显示占位图标）→ 正文（类型/日期、标题、标签、Markdown 描述、地点/时间/发布人、联系方式）→ **评论区** → 底部【申请认领 / 我捡到了】按钮（仅学生角色显示）；
 - 移动端（≤640px）：弹窗宽度 94vw，画廊高度压缩，正文留白缩小。
 
 #### 功能规格
 
+- 评论区：展示真实评论（`GET /item/:id/comments`），支持发评论、楼中楼回复与取消回复（见 3.5 评论）；
 - 认领入口：仅学生角色显示，寻物物品显示【我捡到了】、招领物品显示【申请认领】，状态非在架时按钮禁用（见 3.3 认领流程）；
 
 > **设计取舍（移除浏览 / 点赞 / 收藏）**：为保持前端原型的精简与稳定，在未接入真实后端接口前，**暂不保留不具备真实数据支撑的互动功能**。此前详情弹窗底部的「浏览数」「点赞」「收藏」为纯前端 Mock 数据（无对应后端接口），已从 UI 与代码中彻底移除；相关状态字段（`likedItemIds`、`favoriteItemIds` 等）与样式一并清理。待后端提供点赞 / 收藏 / 浏览统计接口后可再行扩展。
+
+### 3.5 评论
+
+- 真实接口：`GET /item/:item_id/comments`（游标分页）、`POST /item/:item_id/comments/create`（登录可发）、`GET /item/:item_id/comments/replies`（回复子树）、`PATCH /item/:item_id/comments/update`（管理员改状态）。
+- 详情弹窗内展示评论区，支持发评论、楼中楼回复（`parent_id`）、取消回复；作者暂以「用户#id」展示（后端 `CommentDTO` 暂未返回昵称/头像）。
+- 后端暂无点赞 / 收藏 / 删除评论接口。
+- 契约细节（按后端代码）：`CommentDTO.parent_id` 是 int64、**0 表示根评论**（不是 null）；列表接口 `limit` 缺省 0 时**只会返回 1 条**，必须显式传正整数；`replies` 的 `depth` 缺省 0 会返回空；`create` 以 **body.item_id** 为准、`user_id` 必须传本人非 0（服务端随后用登录态覆盖）。
+- ⚠️ **后端列表接口已知缺陷 + 前端兜底**：`service/advanced/comment_service.go` 的游标循环（`startat = started_id - loop*limit`，只在「凑满 limit」或 `startat <= 0` 时退出）会导致「评论数 < limit 时同一条评论重复返回」「0 条评论时按 `started_id/limit` 空转查询」。前端用 `COMMENT_PULL_LIMIT = 999999` 使第一轮取完、第二轮 `startat = 0` 立即返回（整个请求只打 **1 次**数据库），并在 store 侧按 id 去重兜底。待后端修复（某批返回条数 < limit 即结束循环）后可把 limit 调回常规值。
 
 ### 3.6 消息通知（真实后端）
 
@@ -372,13 +381,13 @@ status 1（已认领）
 ## 5. TypeScript 实现要求
 
 - 入口、路由、Pinia store、Vite 配置均使用 TypeScript。
-- 领域类型定义于 `src/stores/app.ts`（`Role`、`ItemType`、`ItemStatus`、`Item` 等）与 `src/api/types.ts` / `src/api/*.ts`（`UserResponse`、`CreateUserRequest`、`ItemDTO`、`NotificationItem`、`AnnouncementItem`、统计响应等）。
+- 领域类型定义于 `src/stores/app.ts`（`Role`、`ItemType`、`ItemStatus`、`Item` 等）与 `src/api/types.ts` / `src/api/*.ts`（`UserResponse`、`CreateUserRequest`、`ItemDTO`、`CommentDTO`、`NotificationItem`、`AnnouncementItem`、统计响应等）。
 - 使用 `vue-tsc --noEmit`（`npm run type-check`）进行类型检查。
 
 ## 6. 当前边界
 
 - 审核页面已移除：后端当前无「待审核」状态与审核接口，前端**不存在独立审核页面**（原【审核中心】/`/app/audit` 已整体删除，其内容并入【物品管理】；失物招领管理员登录后默认进入 `物品管理`）。
-- 物品详情弹窗的浏览 / 点赞 / 收藏功能已移除（无真实后端接口支撑，暂不保留）；**评论功能（发评论 / 楼中楼回复）因后端接口异常已整体删除**。
+- 物品详情弹窗的浏览 / 点赞 / 收藏功能已移除（无真实后端接口支撑，暂不保留）；评论作者暂以「用户#id」展示（后端 `CommentDTO` 未返回昵称/头像）。
 - 公告「已读」为前端 localStorage 记忆，无服务端已读接口。
 - 数据大屏为 CSS 自绘图表，ECharts 尚未接入。
 - 移动端适配、Vercel 部署、图片对象存储独立域名等为后续里程碑。

@@ -133,7 +133,8 @@ AI 基于「菜单隐藏不等于权限控制」的原则完成登录守卫与�
 
 
 
-## 7. 调试与关键问题修复
+39. **补回评论功能（按后端代码契约 + 前端兜底绕过接口缺陷）**：`api_guide.md` / `api_agent.md` **均无 comment 章节**（范围声明里也没有），故契约以后端代码为准（`router/advanced/comment_router.go`、`model/advanced/comment.go`、`service/advanced/comment_service.go`、`dao/comment.go`）。实现上从 git（`4076d5d^`）恢复旧实现，并按后端现状做 3 处**必要适配** —— ① **`parent_id` 判根**：后端是 int64、**0 表示根评论**（不是 null），旧代码 `dto.parent_id ?? undefined` 会把根评论误判成回复并缩进，改为 `parent_id > 0 ? parent_id : undefined`；② **`limit` 必须显式传**：后端 `limit=0`（缺省）时只会返回 1 条；③ **按 id 去重**：后端列表接口的游标循环（`startat = started_id - loop*limit`，只在「凑满 limit」或 `startat <= 0` 时退出）会导致「评论数 < limit 时同一条评论重复返回」「0 条评论时按 `started_id/limit` 空转查询（缺省参数下 ≈ 1 万次）」——前端用 `COMMENT_PULL_LIMIT = 999999` 让第一轮取完、第二轮 `startat = 0` 立即返回（**整个请求只打 1 次数据库**），并在 store 里用 `Set` 去重兜底；`src/api/comment.ts` 文件头写清了原因与「后端修复后如何改回」。其它适配：`createComment` 的 `user_id` 必须传本人非 0（后端 `binding:"required"`，随后用登录态覆盖）、`item_id` 以 **body** 为准（路径参数不参与校验）；`addComment` 签名简化为 `{ itemId, content, parentId }`；评论拉取时机放在 `DetailDialog` 内 `watch(() => props.item?.id)`（比旧版 `App.vue.openItem()` + 组件内 `onMounted` 更稳，且避免每次打开重复请求、覆盖「相似帖子」切换物品的场景）。恢复范围：新建 `src/api/comment.ts`、`stores/app.ts`（`Comment` / `comments` / `formatCommentDate` / `mapToComment` / `fetchComments` / `addComment` 与导出项）、`DetailDialog.vue`（评论区 UI 与脚本）、`styles.css`（167 行评论样式）、`helpContent.ts`（学生端「评论与回复」章节）；文档同步 README（简介 / API 表 / 详情弹窗 / 当前边界）、`spec.md`（§2.1、§3.4 结构与功能、恢复 §3.5 并补契约与后端缺陷说明、§5 类型、§6 边界）、`plan.md`。管理端「隐藏 / 恢复评论」（`PATCH .../update`，role≥1）按计划**未做 UI**，仅在接口层保留函数备用。
+
 
 处理过的问题：
 
@@ -361,3 +362,10 @@ npm run dev
 100. 打开任一他人物品的详情 → 点【申请认领 / 我捡到了】→ **弹窗内按钮立即变为「撤销认领」、状态同步更新**（无需手动刷新页面）；首页卡片状态同步变化，且**当前筛选条件保持不变**（不会被重置成默认视图）。撤销认领同理。
 101. 物品详情弹窗正文中应显示「**联系方式：xxx**」；发布时未填联系方式的物品显示「联系方式：未提供」。
 102. 智能助手：草稿卡下方**不输入任何内容**直接点【确认发布】→ 应正常建帖（不再弹「请先描述一下物品情况」）；点【取消】→ 直接取消本次发布。
+
+**评论功能补回（本轮）回归**
+
+103. 打开一个**没有评论**的物品详情：请求应**毫秒级**返回、评论区显示「还没有评论，来留下第一条吧」；Network 里 `/item/:id/comments` 请求**只有 1 次**且带 `limit=999999`（验证已绕过后端「0 条评论空转上万次查询」的缺陷）。
+104. 打开一个**有 1~3 条评论**的物品：评论**不重复**（旧后端行为会重复几十次）；**根评论不应缩进**（验证 `parent_id=0` 判根），只有回复才缩进。
+105. 发一条评论 → 输入框清空、提示「评论已发布」、列表立即出现；点某条评论的「回复」→ 顶部出现「正在回复 @用户#id」，发送后回复缩进显示；点「取消」退出回复态。
+106. 连续打开**不同物品**的详情 → 评论区**不串号**（只显示当前物品的评论）；关掉再打开同一物品也正常加载。

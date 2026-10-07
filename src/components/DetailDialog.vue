@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore, isActiveStatus, type Item } from '../stores/app'
 import { renderMarkdown } from '../utils/markdown'
@@ -16,6 +16,31 @@ const dialogVisible = computed({
   }
 })
 const canClaim = computed(() => !!props.item && isActiveStatus(props.item.status))
+
+// —— 评论区 ——
+// 评论列表由 store 统一持有（按 itemId 过滤），App.vue 打开详情时已拉取一次；
+// 这里再 watch 一次物品 id，保证「相似帖子」切换物品、或从别处重新打开时也会刷新
+const commentText = ref('')
+const replyTarget = ref<{ id: number; author: string } | null>(null)
+const comments = computed(() => (props.item ? store.comments.filter((c) => c.itemId === props.item?.id) : []))
+watch(() => props.item?.id, (id) => { if (id) store.fetchComments(id) })
+
+async function sendComment() {
+  if (!props.item) return
+  const content = commentText.value.trim()
+  if (!content) {
+    ElMessage.warning('请输入评论内容')
+    return
+  }
+  try {
+    await store.addComment({ itemId: props.item.id, content, parentId: replyTarget.value?.id })
+    commentText.value = ''
+    replyTarget.value = null
+    ElMessage.success('评论已发布')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '评论发布失败，请稍后重试')
+  }
+}
 
 async function submitClaim() {
   const item = props.item
@@ -58,6 +83,26 @@ function openSimilar(id: number) { emit('openItem', id) }
     <div class="detail-dialog-scroll">
       <div class="detail-content"><span class="eyebrow">{{ item.type === 'lost' ? '寻物信息' : '招领信息' }} · {{ item.date }}</span><h2>{{ item.title }}</h2><div class="detail-tags"><el-tag v-for="tag in item.tags" :key="tag" effect="light">{{ tag }}</el-tag></div><div class="markdown-body" v-html="renderMarkdown(item.desc)"></div><div class="detail-lines"><span>⌖ {{ item.location }}</span><span>◷ {{ item.date }}</span><span>发布人：{{ item.author }}</span><span>联系方式：{{ item.contact || '未提供' }}</span></div>
 
+        <section class="comments-section">
+          <div class="comments-heading"><h3>评论区</h3><span>{{ comments.length }} 条评论</span></div>
+          <div v-if="replyTarget" class="replying-to">正在回复 @{{ replyTarget.author }}<button type="button" @click="replyTarget = null">取消</button></div>
+          <div class="comment-composer">
+            <el-input v-model="commentText" type="textarea" :rows="2" :placeholder="replyTarget ? `回复 @${replyTarget.author}` : '说说你的看法...'" maxlength="200" show-word-limit />
+            <button type="button" class="send-comment" aria-label="发送评论" :disabled="!commentText.trim()" @click="sendComment">➤</button>
+          </div>
+          <div class="comment-list">
+            <article v-for="comment in comments" :key="comment.id" class="comment-item" :class="{ 'comment-reply': comment.parentId }">
+              <div class="comment-avatar">{{ comment.avatar }}</div>
+              <div class="comment-body">
+                <div class="comment-meta"><strong>{{ comment.author }}</strong><time>{{ comment.date }}</time></div>
+                <p v-if="comment.replyTo" class="reply-label">回复 @{{ comment.replyTo }}</p>
+                <p class="comment-text">{{ comment.content }}</p>
+                <div class="comment-actions"><button type="button" @click="replyTarget = { id: comment.id, author: comment.author }">回复</button></div>
+              </div>
+            </article>
+            <el-empty v-if="!comments.length" description="还没有评论，来留下第一条吧" :image-size="70" />
+          </div>
+        </section>
         <div v-if="store.role === 'student' && (!store.isMyItem(item) || store.isClaimedByMe(item))" class="claim-btn-wrap"><button v-if="!store.isMyItem(item)" type="button" class="primary-btn full-btn" :disabled="!canClaim" @click="submitClaim">{{ item.type === 'lost' ? '我捡到了' : '申请认领' }}</button><button v-if="store.isClaimedByMe(item) && item.status === '已认领'" type="button" class="primary-btn full-btn ghost" @click="cancelClaim">撤销认领</button></div>
         <SimilarItems v-if="item" :item-id="item.id" @open="openSimilar" />
       </div>
