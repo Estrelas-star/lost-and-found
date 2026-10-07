@@ -65,7 +65,7 @@ AI 基于「菜单隐藏不等于权限控制」的原则完成登录守卫与�
 - `src/App.vue`：工作台容器，按角色与 `activeRoute` 渲染业务模块。
 - `src/AppRoot.vue`：根组件，挂载 `RouterView`，监听 `auth:expired` 统一登出。
 - `src/views/`：`Login.vue`（登录 + 内嵌注册）、`Register.vue`。
-- `src/components/*`：`MetricCard`、`PublishForm`、`DetailDialog`、`AuditCenter`、`ManageItems`、`EditItemDialog`、`UserSettingsDialog`、`NotificationBell`、`AnnouncementBell`、`AnnouncementManager`、`AdminUsers`、`Dashboard`、`LocationSelector`、`TagWall`、**`ShopCenter`、`ManageGoods`、`AgentAssistant`、`AgentWriteDialog`、`AgentImagePicker`、`SimilarItems`**。
+- `src/components/*`：`MetricCard`、`PublishForm`、`DetailDialog`、`ManageItems`、`EditItemDialog`、`UserSettingsDialog`、`NotificationBell`、`AnnouncementBell`、`AnnouncementManager`、`AdminUsers`、`Dashboard`、`LocationSelector`、`TagWall`、**`ShopCenter`、`ManageGoods`、`AgentAssistant`、`AgentWriteDialog`、`AgentImagePicker`、`SimilarItems`**。
 - `src/utils/`：`auth.ts`（JWT 存储/解码/续期）、`markdown.ts`、`image.ts`（图片地址解析）。
 - `src/styles.css`：全局布局、配色、响应式与交互视觉。
 
@@ -123,6 +123,9 @@ AI 基于「菜单隐藏不等于权限控制」的原则完成登录守卫与�
 
 35. **智能助手「思考 / 输出」观感改造（纯前端演示效果）**：① **思考期霓虹炫彩框** —— 把原来的灰气泡「正在思考…」换成 `.agent-neon`：用 `linear-gradient(90deg, 蓝→紫→粉→蓝→紫→粉→蓝)` + `background-size:200% 100%` 循环 `background-position`（**首尾同色且周期恰为元素宽度 ⇒ 位移 100% 时图案与自身重合，循环无跳变**），1.6s 一轮（偏快）；外层再叠 `box-shadow` 呼吸光晕。② **三句文案每秒随机切换** —— `THINK_TEXTS = ['AI Deep Thinking','智能体深度思考中','AI结果数据源精准比对中']`，`setInterval(1000)` 随机取一句并**排除当前这句**（否则看不出切换），同时 `thinkSeq++` 交给 `:key` 强制重建节点，让 `@keyframes agent-neon-flip`（`rotateX(-360deg)→0`，父级 `perspective:640px`）每秒从头重放一次，即「文字 3D 竖直转一圈」；文案右侧是独立的 `✦` 星星，`.7s/圈` 常转 + 白光描边。计时器统一由 `watch(sending)` 开关（「确认 / 取消」这类显式动作同样会亮）。③ **回答逐字输出（每秒 40 字）** —— `TYPE_TICK_MS = 25ms`，`ChatMessage` 新增 `typed` 字段，模板用 `visibleText(m)` 取已输出前缀、`typingDone(m)` 判断是否读完；**草稿卡 / 候选匹配 / 操作按钮整体包在 `<template v-if="typingDone(m)">` 内**，读完才展开（原来是一整块瞬间渲染）；输出中带闪烁光标 `.agent-caret`；自动滚动只在「本来就贴底（<120px）」时跟随，避免打断用户向上翻看。**踩到的坑**：`messages` 是 `ref<ChatMessage[]>`，push 之后必须再从数组里 `find()` 取到**响应式代理**再赋值 —— 直接改 push 前那个原始对象不会触发渲染。④ **溯源行** —— 每条正常回答在正文上方显示 `AI溯源，数据可信度{95 + random(1~3)}%`（`toFixed(2)` 两位小数，每条生成一次后固定不变），错误提示不显示。⑤ 另加 `prefers-reduced-motion: reduce` 兜底关闭这些动画。⑥ **尺寸与节奏微调** —— 删掉 `.agent-main` 上多余的 `margin-top:22px`（页头与面板之间凭空多出的 22px）；竖转动画 `.5s → .17s`（缩短到原来的 1/3，切换更利落）；`.agent-neon` 由 `flex:1 1 auto` 改为 `flex:0 1 auto`，与 AI 回复气泡 `.agent-bubble` 使用同一个 `max-width:78%` 上限且**跟随内容自适应**，不再被 flex 拉满整行。⚠️ 该可信度数值是**前端随机数、仅用于观感演示，不代表后端真实数据来源**。
 
+36. **移除【审核中心】页面**：按需求整体删除（其内容并入【物品管理】）—— ① 删除组件 `src/components/AuditCenter.vue`；② `navigation.ts` 去掉 itemAdmin 菜单的「审核中心」项；③ `router.ts` 删掉 `/app/audit` 路由，并把 `roleHome.itemAdmin` 由 `'audit'` 改为 `'manage'`；④ `App.vue` 移除组件 import、`pageTitle` 的 `audit` 映射与页面渲染节点，并把容器内的 `roleHome.itemAdmin` 同步改为 `'manage'`（登录落地 / 无权限回跳 / `/app` 入口三种情况都落到「物品管理」）；⑤ 清理死样式（`styles.css` 顶部 3 条 `.audit-center` 规则）；⑥ `helpContent.ts` 删除管理端「审核中心」章节，该组简介改为「物品维护、商城商品维护、数据总览与通知发送」；⑦ 文档同步：README（管理员默认落地页改为物品管理、删除该功能条目与「帖子审核 Tab」限制条目）、`spec.md`（§1 概述、§2.2 角色清单、§3.8 举报、§4 权限矩阵行、§6 当前边界）、`plan.md`（远期规划改为「接口就绪后直接在物品管理页扩展通过 / 驳回」）。按要求**未增加任何额外提示或兜底 UI**。
+
+
 
 ## 7. 调试与关键问题修复
 
@@ -171,7 +174,7 @@ npm run dev
 
 ## 10. 当前限制
 
-- **审核中心已无数据可展示，且不再有演示数据**：后端物品「创建即发布」，没有「待审核」状态，也没有审核接口；此前的演示数据兜底与纯前端「通过 / 驳回」（只改本地数组）已全部移除，页面只如实说明不可用，待后端补充审核流程后再接入。
+- **审核页面已整体移除**：后端物品「创建即发布」，没有「待审核」状态，也没有审核接口；按需求前端不再单独设【审核中心】页面（`/app/audit` 路由、`AuditCenter.vue` 组件、侧栏菜单与面包屑标题均已删除，失物招领管理员登录后默认进入 `物品管理`），其内容并入【物品管理】。
 - 物品详情弹窗的浏览 / 点赞 / 收藏功能已移除（无真实后端接口支撑，暂不保留）；评论作者暂以「用户#id」展示（后端 `CommentDTO` 暂未返回昵称/头像）。
 - 公告「已读」为前端 localStorage 记忆，无服务端已读接口。
 - 数据大屏为 CSS 自绘图表，ECharts 尚未接入。

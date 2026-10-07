@@ -7,7 +7,6 @@ import { navItems } from './navigation'
 import Dashboard from './components/Dashboard.vue'
 import PublishForm from './components/PublishForm.vue'
 import DetailDialog from './components/DetailDialog.vue'
-import AuditCenter from './components/AuditCenter.vue'
 import ManageItems from './components/ManageItems.vue'
 import EditItemDialog from './components/EditItemDialog.vue'
 import UserSettingsDialog from './components/UserSettingsDialog.vue'
@@ -59,7 +58,7 @@ const profileMenuOpen = ref(false)
 const settingsVisible = ref(false)
 const currentAvatar = computed(() => resolveImageUrl(store.authUser?.avatar))
 const roleLabels = { student: '学生端', itemAdmin: '失物招领管理', systemAdmin: '系统管理' }
-const pageTitle = computed(() => ({ home: '发现物品', assistant: '智能助手', publish: '发布信息', posts: '我的发布', claims: '我的认领', audit: '审核中心', manage: '物品管理', shop: '积分商城', goods: '商品管理', dashboard: '数据总览', users: '账号管理', notices: '公告管理', help: '帮助中心' })[store.activeRoute])
+const pageTitle = computed(() => ({ home: '发现物品', assistant: '智能助手', publish: '发布信息', posts: '我的发布', claims: '我的认领', manage: '物品管理', shop: '积分商城', goods: '商品管理', dashboard: '数据总览', users: '账号管理', notices: '公告管理', help: '帮助中心' })[store.activeRoute])
 const visibleNavItems = computed(() => navItems[store.role].filter((item) => (item.roles as readonly Role[]).includes(store.role)))
 // 分类筛选改用标签墙（selectedCategories），不再需要 categoryOptions
 const locationOptions = computed(() => ['全部', ...store.locations.map((l) => l.name)])
@@ -102,7 +101,7 @@ watch([filter, selectedCategories, locationFilter, locationPath, search], () => 
   if (homeFilterTimer) clearTimeout(homeFilterTimer)
   homeFilterTimer = setTimeout(() => applyHomeFilters(), 300)
 })
-const roleHome = { student: 'home', itemAdmin: 'audit', systemAdmin: 'dashboard' } as const
+const roleHome = { student: 'home', itemAdmin: 'manage', systemAdmin: 'dashboard' } as const
 
 watch(() => route.meta.page, (page) => {
   store.setActiveRoute(typeof page === 'string' ? page : roleHome[store.role])
@@ -269,7 +268,6 @@ async function closeMyItem(item: Item) {
     <main class="main-content">
       <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong>{{ pageTitle }}</strong></div><div class="top-actions"><button v-if="store.role === 'student'" class="credit-chip" title="我的积分，点击进入积分商城" @click="go('shop')"><span>◆</span>{{ store.authUser?.credit ?? 0 }} 积分</button><AnnouncementBell /><NotificationBell @open-item="openItemById" /><div class="profile-wrap"><button class="profile" @click="profileMenuOpen = !profileMenuOpen"><span class="avatar small"><img v-if="currentAvatar" :src="currentAvatar" alt="" /><template v-else>{{ store.currentUser.name.slice(0, 1) }}</template></span><span>{{ store.currentUser.name }}</span>⌄</button><div v-if="profileMenuOpen" class="profile-menu"><div class="profile-menu-heading"><strong>{{ store.currentUser.name }}</strong><small>{{ store.currentUser.label }}</small></div><button class="profile-menu-item" @click="openSettings">账号设置</button><button @click="handleLogout">退出登录</button></div></div></div></header>
       <div class="page-wrap">
-        <AuditCenter v-if="store.activeRoute === 'audit'" />
         <ManageItems v-if="store.activeRoute === 'manage'" />
         <!-- 发布表单用 KeepAlive 缓存：填写中途切到其它页面再回来，草稿不丢 -->
         <KeepAlive>

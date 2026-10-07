@@ -1,17 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;800&display=swap');
 
-.audit-center .section-intro {
-  margin-bottom: 24px;
-}
-
-.audit-center .el-table__cell {
-  font-size: 12px;
-}
-
-.audit-center .el-button {
-  font-size: 12px;
-}
-
 .modal-backdrop {
   display: none!important;
 }

@@ -9,7 +9,7 @@ import { navItems } from './navigation'
 const allRoles: Role[] = ['student', 'itemAdmin', 'systemAdmin']
 const roleHome: Record<Role, string> = {
   student: 'home',
-  itemAdmin: 'audit',
+  itemAdmin: 'manage',
   systemAdmin: 'dashboard'
 }
 
@@ -24,7 +24,6 @@ const routes: RouteRecordRaw[] = [
   { path: '/app/posts', name: 'posts', component: App, meta: { requiresAuth: true, roles: ['student'], page: 'posts' } },
   { path: '/app/claims', name: 'claims', component: App, meta: { requiresAuth: true, roles: ['student'], page: 'claims' } },
   { path: '/app/shop', name: 'shop', component: App, meta: { requiresAuth: true, roles: ['student'], page: 'shop' } },
-  { path: '/app/audit', name: 'audit', component: App, meta: { requiresAuth: true, roles: ['itemAdmin'], page: 'audit' } },
   { path: '/app/manage', name: 'manage', component: App, meta: { requiresAuth: true, roles: ['itemAdmin'], page: 'manage' } },
   { path: '/app/goods', name: 'goods', component: App, meta: { requiresAuth: true, roles: ['itemAdmin'], page: 'goods' } },
   { path: '/app/dashboard', name: 'dashboard', component: App, meta: { requiresAuth: true, roles: ['systemAdmin', 'itemAdmin'], page: 'dashboard' } },
