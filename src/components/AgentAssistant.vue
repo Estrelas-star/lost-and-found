@@ -586,7 +586,7 @@ onBeforeUnmount(() => {
 .agent-page.has-drawer{max-width:calc(var(--page-max) + 352px)}
 .agent-disabled{margin-top:28px}
 /* 对话面板 + 示例弹窗同一行：弹窗的梯形按钮正好落在面板右边缘 */
-.agent-main{display:flex;align-items:stretch;flex:1;min-height:0;margin-top:22px}
+.agent-main{display:flex;align-items:stretch;flex:1;min-height:0}
 .agent-panel{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card)}
 .agent-stream{flex:1;min-height:140px;overflow-y:auto;padding:20px 18px;display:flex;flex-direction:column;gap:14px;background:#f9fbf9;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
 /* 图片拖到面板任意位置（对话 + 输入区）时的灰色蒙雾 */
@@ -628,11 +628,12 @@ onBeforeUnmount(() => {
 .agent-text{margin:0;white-space:pre-wrap}
 .agent-stage-hint{margin:8px 0 0;color:var(--muted);font-size:12px}
 /* —— 思考中的霓虹炫彩框：横向流动的蓝→紫→粉渐变 + 文案 3D 竖转一圈 + 星星高速自转 —— */
-.agent-neon{position:relative;flex:1 1 auto;max-width:78%;display:flex;align-items:center;gap:12px;min-height:48px;padding:12px 18px;border-radius:14px;border-bottom-left-radius:4px;overflow:hidden;perspective:640px;color:#fff;box-shadow:0 0 16px #7c3aed5c,0 0 32px #2563eb3d;animation:agent-neon-glow 1.6s ease-in-out infinite}
+/* 尺寸跟随内容、上限与 AI 回复气泡一致（.agent-bubble 的 max-width:78%），不再被 flex 拉满整行 */
+.agent-neon{position:relative;flex:0 1 auto;max-width:78%;display:flex;align-items:center;gap:12px;min-height:48px;padding:12px 18px;border-radius:14px;border-bottom-left-radius:4px;overflow:hidden;perspective:640px;color:#fff;box-shadow:0 0 16px #7c3aed5c,0 0 32px #2563eb3d;animation:agent-neon-glow 1.6s ease-in-out infinite}
 /* 渐变带宽度是元素的两倍、且首尾同色 → background-position 走满一周期时无缝衔接，看起来是一直流淌 */
 .agent-neon::before{content:"";position:absolute;inset:0;background-image:linear-gradient(90deg,#2563eb,#7c3aed,#db2777,#2563eb,#7c3aed,#db2777,#2563eb);background-size:200% 100%;animation:agent-neon-flow 1.6s linear infinite}
 .agent-neon>span{position:relative;z-index:1}
-.agent-neon-text{flex:1 1 auto;text-align:center;font-size:13px;font-weight:700;letter-spacing:.4px;animation:agent-neon-flip .5s var(--ease) both}
+.agent-neon-text{flex:1 1 auto;text-align:center;font-size:13px;font-weight:700;letter-spacing:.4px;animation:agent-neon-flip .17s var(--ease) both}
 .agent-neon-star{flex:0 0 auto;font-size:17px;line-height:1;text-shadow:0 0 8px #fff,0 0 18px #a78bfa;animation:agent-neon-spin .7s linear infinite}
 @keyframes agent-neon-flow{from{background-position:0% 50%}to{background-position:100% 50%}}
 @keyframes agent-neon-flip{from{transform:rotateX(-360deg) scale(.9);opacity:0}60%{opacity:1}to{transform:rotateX(0) scale(1);opacity:1}}
