@@ -127,6 +127,9 @@ AI 基于「菜单隐藏不等于权限控制」的原则完成登录守卫与�
 
 
 
+37. **移除评论功能（后端评论接口异常）**：整体删除前端评论相关实现 —— ① 删除接口层 `src/api/comment.ts`（`createComment` / `listComments` / `getCommentReplies` / `updateCommentStatus` 与 `CommentDTO` / `CommentListResult`）；② `stores/app.ts` 移除 `Comment` 接口、`comments` 状态、`formatCommentDate` / `mapToComment` / `fetchComments` / `addComment` 及其导出项；③ `DetailDialog.vue` 移除评论区整段模板（评论列表 / 楼中楼回复 / 输入框与发送按钮）与配套脚本（`commentText`、`replyTarget`、`comments`、`sendComment` 及 `onMounted` 拉取），详情弹窗现为「图片画廊 → 正文 → 认领 / 撤销认领 → 相似帖子」；④ `App.vue` 的 `openItem()` 去掉 `store.fetchComments()` 调用；⑤ 清理 `styles.css` 中全部 `.comments-*` / `.comment-*` / `.send-comment` / `.replying-to` / `.reply-label` 死样式；⑥ `helpContent.ts` 删除学生端「评论与回复」章节，并去掉详情弹窗说明里的评论区；⑦ 文档同步：README（顶部简介、API 表删除「评论」行、详情弹窗条目、当前边界）、`spec.md`（§2.1 学生能力、§3.4 弹窗结构与功能、删除 §3.5「评论」整节、§3.14 副作用说明、§5 类型清单、§6 当前边界）、`plan.md`（评论对接条目与远期规划标注）。通知类型枚举里的 `4 评论回复` 属后端契约标签，保留不动。
+
+
 ## 7. 调试与关键问题修复
 
 处理过的问题：
@@ -175,7 +178,7 @@ npm run dev
 ## 10. 当前限制
 
 - **审核页面已整体移除**：后端物品「创建即发布」，没有「待审核」状态，也没有审核接口；按需求前端不再单独设【审核中心】页面（`/app/audit` 路由、`AuditCenter.vue` 组件、侧栏菜单与面包屑标题均已删除，失物招领管理员登录后默认进入 `物品管理`），其内容并入【物品管理】。
-- 物品详情弹窗的浏览 / 点赞 / 收藏功能已移除（无真实后端接口支撑，暂不保留）；评论作者暂以「用户#id」展示（后端 `CommentDTO` 暂未返回昵称/头像）。
+- 物品详情弹窗的浏览 / 点赞 / 收藏、以及**评论（发评论 / 楼中楼回复）功能已整体删除**（后端评论接口异常，前端相关组件、接口封装与状态一并移除）。
 - 公告「已读」为前端 localStorage 记忆，无服务端已读接口。
 - 数据大屏为 CSS 自绘图表，ECharts 尚未接入。
 - **商城**：`goods` 表只有 `is_deleted`（软删）没有 `status`，后端也未提供「含已下架商品」的管理端列表接口，因此商品管理页复用公开列表 `GET /shop/goods/list` —— 只能看到未下架商品，**下架后无法在前端恢复**（界面已用 `el-alert` 明确提示）。兑换强制要求账号已绑定 QQ（`11005`），未绑定路径已做前置拦截与引导，但**真实兑换成功路径依赖 QQ 群机器人在线，前端无法自测**。

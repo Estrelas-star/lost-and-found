@@ -1,13 +1,13 @@
 # 拾光 · 校园失物招领系统
 
-拾光是一个面向校园场景的失物招领系统，覆盖物品发现、信息发布、认领归还、公告管理和数据总览等核心流程。项目采用 **Vue 3 + Vite + TypeScript + Pinia + Vue Router + Element Plus** 构建，前端已与 **Go 后端真实 API 完成联调**（非 Mock 数据），并实现了基于路由守卫的前端 RBAC 权限控制。当前版本的互动功能以**评论**（发评论 / 楼中楼回复）与**认领 / 线索**（申请认领、我捡到了、确认归还）为核心闭环。
+拾光是一个面向校园场景的失物招领系统，覆盖物品发现、信息发布、认领归还、公告管理和数据总览等核心流程。项目采用 **Vue 3 + Vite + TypeScript + Pinia + Vue Router + Element Plus** 构建，前端已与 **Go 后端真实 API 完成联调**（非 Mock 数据），并实现了基于路由守卫的前端 RBAC 权限控制。当前版本的业务闭环以**认领 / 线索**（申请认领、我捡到了、确认归还）为核心。
 
 ## 技术栈
 
 - **Vue 3**：`<script setup>` + Composition API
 - **Vite**：开发服务器与生产构建；`/api`、`/uploads` 代理到后端，避免跨域
 - **TypeScript**：领域类型与类型安全，`vue-tsc --noEmit` 类型检查
-- **Pinia**：集中式状态管理（`src/stores/app.ts`，认证、物品、通知、公告、评论等）
+- **Pinia**：集中式状态管理（`src/stores/app.ts`，认证、物品、通知、公告等）
 - **Vue Router**：路由元信息、登录守卫与角色访问控制（RBAC）
 - **Element Plus**：表单、表格、弹窗、分页、级联等 UI 组件
 - **ECharts**：已加入依赖，用于后续数据大屏可视化（当前大屏为 CSS 自绘图表）
@@ -20,7 +20,6 @@
 | --- | --- |
 | 用户 | `POST /user/create` 注册、`POST /user/login` 登录（Token 在响应头）、`POST /user/logout` 登出、`GET /user/me` 会话校验、`POST /user/update` 改资料、`POST /user/batch` 批量取用户、`POST /user/qq/get-code` / `POST /user/qq/bind` QQ 绑定 |
 | 物品 | `POST /item/create` 发布（创建即发布）、`GET /item/list` 公开列表、`GET /item/mine` 我的发布、`GET /item/:id` 详情、`POST /item/update` 编辑、`POST /item/delete` 删除、`POST /item/:id/close` 下架、`GET /item/count` 在架计数、`POST /item/:id/claim` / `claim/cancel` / `confirm` 认领流程、`POST /item/:id/images` 设置图片 |
-| 评论 | `GET /item/:id/comments`、`POST /item/:id/comments/create`、`GET /item/:id/comments/replies`、`PATCH /item/:id/comments/update` |
 | 通知 | `GET /notifications`（limit/offset 分页）、`GET /notifications/unread-count`、`GET /notifications/:id`（查看即已读）、`PUT /notifications/read` 批量已读、`DELETE /notifications` 批量删除、`POST /admin/notifications` 管理员广播 |
 | 公告 | 公开 `GET /announcement`、`GET /announcement/:id`；管理端 `GET/POST /admin/announcement`、`POST /admin/announcement/create|update`、`DELETE /admin/announcement/:id` |
 | 统计 | `GET /admin/stats/overview|trend|locations|time-heatmap|items/stagnant|items/high-view|return-duration|distribution|funnel` |
@@ -37,7 +36,7 @@
 - **注册**：登录页「立即注册」开放普通学生注册（账号 + 密码 + 昵称），新注册用户默认普通学生（后端 `role = 0`），注册成功即登录进入工作台；`/register` 独立注册页可跳转登录页。注册接口校验账号唯一、密码 8-20 位且含大小写 + 数字 + 符号。
 - **登录鉴权**：仅需账号 + 密码，真实账号密码匹配后按服务端返回的角色进入对应工作台（学生 → 发现物品，失物招领管理员 → 物品管理，系统管理员 → 数据总览）。
 - **物品发现（首页）**：物品卡片列表，支持关键词搜索（名称/地点/标签，后端服务端筛选）、类型（全部/寻物/招领）、标签墙多选、地点级联（后端地点树）、时间等筛选，真分页（后端真实 `total`）。
-- **详情弹窗**：图片画廊、物品标签、Markdown 描述、评论区（发评论 / 楼中楼回复，后端真实评论接口），底部提供【申请认领 / 我捡到了】入口。
+- **详情弹窗**：图片画廊、物品标签、Markdown 描述与底部「相似帖子」，底部提供【申请认领 / 我捡到了】入口。
 - **认领流程**：
   - **招领物品（`found`）**：非发布者可【申请认领】，认领即占用（物品状态「招领中」→「已认领」）；**认领需先绑定 QQ**（后端错误码 30006），未绑定会提示前往「账号设置」绑定。
   - **寻物物品（`lost`）**：详情页对非发布者显示【我捡到了】，提交后物品由「寻找中」转为「已认领」，等待失主确认。
@@ -129,7 +128,6 @@ npm run preview
 
 - 登录态（Token + 用户信息）持久化在 `localStorage`，刷新后可恢复；后端 6 小时续期、24 小时过期。
 - 图片经 `POST /upload/image` 上传到后端，展示时拼接 `VITE_IMAGE_BASE_URL`。
-- 评论作者暂以「用户#id」展示（后端 `CommentDTO` 暂未返回昵称/头像）。
 - 审核流程尚未提供：后端物品「创建即发布」，前端**不再有独立审核页面**（原【审核中心】已整体移除，内容并入【物品管理】）。
 - 数据大屏当前为 CSS 自绘图表，ECharts 尚未接入。
 - 移动端适配、Vercel 部署为后续里程碑。

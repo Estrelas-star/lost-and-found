@@ -10,8 +10,6 @@ import {
 } from '../api/item'
 import { setAuth, clearAuth, getToken, getStoredUser } from '../utils/auth'
 import type { UserResponse } from '../api/types'
-import { createComment, listComments } from '../api/comment'
-import type { CommentDTO } from '../api/comment'
 import {
   getNotifications, getUnreadCount, getNotificationDetail,
   markNotificationsRead as markReadApi, deleteNotifications as deleteApi, adminBroadcast,
@@ -63,17 +61,6 @@ export interface Claim {
   applicant: string
   date: string
   status: string
-}
-
-export interface Comment {
-  id: number
-  itemId: number
-  author: string
-  avatar: string
-  date: string
-  content: string
-  parentId?: number
-  replyTo?: string
 }
 
 // 后端 role(数字) <-> 前端 Role(字符串) 映射
@@ -141,31 +128,6 @@ export const useAppStore = defineStore('app', () => {
   // —— 本地存储审计（L1）：除 jwt-token(auth) 外，前端仅以下本地状态需要关注 ——
   //   • role：登录时由服务端同步（setRole(roleMap[user.role])），仅作未登录兜底展示，非关键决策源
   //   其余状态均为内存态，不落盘。 catch { return [] } }
-  // 真实评论（GET /item/:id/comments）：初始为空，由 fetchComments 灌入
-  const comments = ref<Comment[]>([])
-
-  // 后端 CommentDTO 只返回 user_id，不返回昵称/头像（model/advanced/comment.go）；
-  // 故作者暂以“用户#id”标识，待后端在 CommentDTO 补充 nickname/avatar 字段即可直接显示真实昵称。
-  function formatCommentDate(iso: string): string {
-    const d = new Date(iso)
-    if (isNaN(d.getTime())) return iso
-    const now = new Date()
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const hm = pad(d.getHours()) + ':' + pad(d.getMinutes())
-    if (d.toDateString() === now.toDateString()) return '今天 ' + hm
-    return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + hm
-  }
-  function mapToComment(dto: CommentDTO): Comment {
-    return {
-      id: dto.id,
-      itemId: dto.item_id,
-      author: '用户#' + dto.user_id,
-      avatar: String(dto.user_id).slice(-1) || 'U',
-      date: formatCommentDate(dto.created_at),
-      content: dto.content,
-      parentId: dto.parent_id ?? undefined,
-    }
-  }
 
   // 登录用户(响应式): 登录时写入、退出时清空, 直接驱动 currentUser,
   // 避免直接读存储导致名字/身份登录后不刷新
@@ -442,26 +404,5 @@ export const useAppStore = defineStore('app', () => {
   async function sendQQCode(qq: number) {
     await getQQCode({ qq })         // POST /user/qq/get-code
   }
-  async function fetchComments(itemId: number) {
-    try {
-      const res = await listComments({ item_id: itemId, started_id: 0, limit: 100 })
-      if (res && Array.isArray(res.comment_dtos)) {
-        const fromServer = res.comment_dtos.map(mapToComment)
-        comments.value = comments.value.filter((c) => c.itemId !== itemId).concat(fromServer)
-      }
-    } catch (e) {
-      // 拉取失败时不清空已展示的评论，保证评论区不崩
-      console.warn('[comment] 拉取评论失败：', (e as Error).message)
-    }
-  }
-  async function addComment(comment: Omit<Comment, 'id' | 'date'>) {
-    await createComment({
-      item_id: comment.itemId,
-      parent_id: comment.parentId ?? null,
-      content: comment.content,
-      user_id: authUser.value?.id ?? 0,
-    })
-    await fetchComments(comment.itemId)
-  }
-  return { role, activeRoute, isAuthenticated, notices, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, myClaims, comments, currentUser, pendingCount, setRole, setActiveRoute, login, logout, fetchItems, submitClaim, cancelMyClaim, confirmMyItem, closeMyItem, addComment, fetchComments, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, resetItemClaim, forceLogout, initSession, isClaimedByMe, isMyItem, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, fetchAllUnreadIds, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
+  return { role, activeRoute, isAuthenticated, notices, remoteItems, remoteTotal, myItems, fetchMyItems, tags, locations, fetchTags, fetchLocations, tagIdByName, locationIdByName, myClaims, currentUser, pendingCount, setRole, setActiveRoute, login, logout, fetchItems, submitClaim, cancelMyClaim, confirmMyItem, closeMyItem, saveRemoteItem, removeRemoteItem, closeRemoteItem, updateMyItem, resetItemClaim, forceLogout, initSession, isClaimedByMe, isMyItem, itemCount, fetchItemCount, register, updateMyProfile, bindQQ, sendQQCode, authUser, fetchNotices, latestNotice, dismissedNoticeIds, dismissNotice, homeNotice, readNoticeIds, unreadNoticeCount, markNoticeRead, markAllNoticesRead, notifications, unreadCount, fetchNotifications, fetchUnreadCount, fetchAllUnreadIds, markNotificationsRead, removeNotifications, openNotification, broadcastNotification, mapToFront }
 })

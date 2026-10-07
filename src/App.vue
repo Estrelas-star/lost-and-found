@@ -168,7 +168,6 @@ function goSmartMatch() {
 
 function openItem(item: Item) {
   selectedItem.value = item
-  store.fetchComments(item.id)
   detailDialogVisible.value = true
 }
 
